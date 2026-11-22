@@ -13,7 +13,7 @@ import { sendInvoiceEmail } from "@/server/core/email";
 import { globalSearch } from "@/server/core/search";
 import { addDays, today, type Actor } from "@/server/core/common";
 import { dec } from "@/server/core/money";
-import { baseSettings, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -27,7 +27,7 @@ beforeAll(async () => {
   admin = await makeActor(db, Role.ADMIN);
   finance = await makeActor(db, Role.FINANCE);
   pm = await makeActor(db, Role.PROJECT_MANAGER);
-  const c = await createClient(db, admin, { name: uid("Report Client") }, [{ name: "Rita", email: "rita@example.com" }]);
+  const c = await createClient(db, admin, cl(uid("Report Client")), [ct("Rita", "Report")]);
   clientId = c.id;
 });
 afterAll(async () => db.$disconnect());
@@ -115,7 +115,7 @@ describe("Reports", () => {
   });
 
   it("exports CSV (with formula guard), XLSX and PDF", async () => {
-    await createClient(db, admin, { name: "=HYPERLINK(\"http://x\")" });
+    await createClient(db, admin, cl("=HYPERLINK(\"http://x\")"), [ct()]);
     const r = await runReport(db, getReport("clients")!, {});
     const csv = toCsv(r);
     expect(csv).toContain("'=HYPERLINK");
@@ -174,7 +174,7 @@ describe("Notifications (BRD §5.9)", () => {
 describe("Global search", () => {
   it("finds clients, contacts, projects, POs and invoices", async () => {
     const name = uid("Zebra");
-    const c = await createClient(db, admin, { name }, [{ name: `${name} Contact`, email: "zz@zebra.example" }]);
+    const c = await createClient(db, admin, cl(name), [ct(name, "Contact", { email: "zz@zebra.example" })]);
     const p = await createProject(db, admin, { code: `${name}-P`, name: "Stripes", clientId: c.id, value: "1", currency: "USD" });
     const hits = await globalSearch(db, name);
     expect(hits.map((h) => h.type)).toEqual(expect.arrayContaining(["Client", "Contact", "Project"]));

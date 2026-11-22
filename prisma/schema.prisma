@@ -93,6 +93,9 @@ model ClientContact {
   id          String   @id @default(cuid())
   clientId    String
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  firstName   String   @default("")
+  lastName    String   @default("")
+  /// Full display name ("First Last"), kept in sync by the service layer; used in search, email and PDFs.
   name        String
   designation String?
   email       String?

@@ -9,7 +9,7 @@ import { groupSum } from "@/server/queries";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { Money, MultiMoney } from "@/components/money";
 import { Badge, Card, DL, Field, fmtDate, Input, labelize, LinkButton, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
-import { ClientForm } from "../client-form";
+import { ClientForm, PHONE_PATTERN } from "../client-form";
 import { addActivityAction, archiveClientAction, deleteContactAction, saveContactAction, updateClientAction } from "../actions";
 
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
@@ -119,7 +119,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               {client.contacts.map((c) => (
                 <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{c.name}</span>
+                    <span className="font-medium">{c.firstName} {c.lastName}</span>
                     {c.isPrimary && <Badge tone="indigo">Primary</Badge>}
                   </div>
                   <div className="text-xs text-slate-500">{[c.designation, c.department].filter(Boolean).join(" · ")}</div>
@@ -178,16 +178,17 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
 
 function ContactForm({ action, c, reset }: {
   action: Parameters<typeof ActionForm>[0]["action"]; reset?: boolean;
-  c?: { name: string; designation: string | null; email: string | null; phone: string | null; department: string | null; isPrimary: boolean };
+  c?: { firstName: string; lastName: string; designation: string | null; email: string | null; phone: string | null; department: string | null; isPrimary: boolean };
 }) {
   return (
     <ActionForm action={action} resetOnSuccess={reset} className="space-y-2">
-      <Field label="Name *"><Input name="name" required defaultValue={c?.name} /></Field>
       <div className="grid grid-cols-2 gap-2">
+        <Field label="First name *"><Input name="firstName" required defaultValue={c?.firstName} /></Field>
+        <Field label="Last name *"><Input name="lastName" required defaultValue={c?.lastName} /></Field>
+        <Field label="Email *"><Input name="email" type="email" required defaultValue={c?.email ?? ""} /></Field>
+        <Field label="Phone *"><Input name="phone" type="tel" required pattern={PHONE_PATTERN} defaultValue={c?.phone ?? ""} /></Field>
         <Field label="Designation"><Input name="designation" defaultValue={c?.designation ?? ""} /></Field>
         <Field label="Department"><Input name="department" defaultValue={c?.department ?? ""} /></Field>
-        <Field label="Email"><Input name="email" type="email" defaultValue={c?.email ?? ""} /></Field>
-        <Field label="Phone"><Input name="phone" defaultValue={c?.phone ?? ""} /></Field>
       </div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="isPrimary" defaultChecked={c?.isPrimary} /> Primary contact</label>
       <SubmitButton size="sm">Save contact</SubmitButton>

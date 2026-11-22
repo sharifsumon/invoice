@@ -10,7 +10,7 @@ import { updateCompany } from "@/server/core/settings";
 import { storageRoot } from "@/server/core/storage";
 import { dec } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
-import { baseSettings, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -28,7 +28,7 @@ beforeAll(async () => {
 afterAll(async () => db.$disconnect());
 
 async function approvedProject(value = "10000", currency = "USD") {
-  const c = await createClient(db, bd, { name: uid("Client") }, [{ name: "Jane", email: "jane@example.com" }]);
+  const c = await createClient(db, bd, cl(uid("Client")), [ct("Jane", "Doe")]);
   const p = await createProject(db, bd, { code: uid("P"), name: "Proj", clientId: c.id, value, currency });
   await transitionProject(db, bd, p.id, ProjectStatus.SUBMITTED);
   await transitionProject(db, admin, p.id, ProjectStatus.APPROVED, { approvalDate: "2026-03-15" });
@@ -50,7 +50,7 @@ describe("Business value (BR-01..03, BR-12)", () => {
     const p = await approvedProject("5000", "EUR");
     await po(p.id, "3000");
     await po(p.id, "4000");
-    const c = await createClient(db, bd, { name: uid("C") });
+    const c = await createClient(db, bd, cl(uid("C")), [ct()]);
     await createProject(db, bd, { code: uid("D"), name: "Draft only", clientId: c.id, value: "99999", currency: "EUR" });
 
     const after = await businessValue(db);
@@ -78,7 +78,7 @@ describe("Business value (BR-01..03, BR-12)", () => {
   });
 
   it("only approvers can approve projects", async () => {
-    const c = await createClient(db, bd, { name: uid("C") });
+    const c = await createClient(db, bd, cl(uid("C")), [ct()]);
     const p = await createProject(db, bd, { code: uid("P"), name: "x", clientId: c.id, value: "1", currency: "USD" });
     await transitionProject(db, bd, p.id, ProjectStatus.SUBMITTED);
     await expect(transitionProject(db, bd, p.id, ProjectStatus.APPROVED)).rejects.toThrow(/permission/);

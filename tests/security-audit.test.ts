@@ -12,7 +12,7 @@ import { updateCompany, updateTemplate, updateUser } from "@/server/core/setting
 import { base32Decode, base32Encode, totp, verifyTotp } from "@/server/core/totp";
 import { can, PERMISSIONS } from "@/server/core/permissions";
 import type { Actor } from "@/server/core/common";
-import { baseSettings, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -103,7 +103,7 @@ describe("Attachments", () => {
     expect(sniffAttachment(Buffer.from("<script>alert(1)</script>"), "x.png")).toBeNull();
     expect(sniffAttachment(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0]), "x.zip")).toBeNull(); // zip only as docx/xlsx
 
-    const c = await createClient(db, admin, { name: uid("A") });
+    const c = await createClient(db, admin, cl(uid("A")), [ct()]);
     const p = await createProject(db, admin, { code: uid("A"), name: "a", clientId: c.id, value: "1", currency: "USD" });
     const po = await createPO(db, finance, { poNumber: uid("APO"), projectId: p.id, poDate: "2026-01-01", value: "10" });
     await expect(addAttachment(db, viewer, "PurchaseOrder", po.id, { name: "a.pdf", data: pdf })).rejects.toThrow(/permission/);
@@ -120,9 +120,9 @@ describe("Attachments", () => {
 
 describe("Audit coverage (BRD §5.10)", () => {
   it("every material financial and configuration action writes an audit record with the actor", async () => {
-    const c = await createClient(db, admin, { name: uid("Aud") });
-    await updateClient(db, admin, c.id, { name: c.name, status: "ONBOARDED" });
-    await upsertContact(db, admin, c.id, { name: "Ann" });
+    const c = await createClient(db, admin, cl(uid("Aud")), [ct()]);
+    await updateClient(db, admin, c.id, cl(c.name, { status: "ONBOARDED" }));
+    await upsertContact(db, admin, c.id, ct("Ann", "Lee"));
     const p = await createProject(db, admin, { code: uid("AU"), name: "x", clientId: c.id, value: "100", currency: "USD" });
     await transitionProject(db, admin, p.id, ProjectStatus.SUBMITTED);
     await transitionProject(db, admin, p.id, ProjectStatus.APPROVED);

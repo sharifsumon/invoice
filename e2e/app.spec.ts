@@ -43,8 +43,16 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   // Client with primary contact
   await page.goto("/clients/new");
   await page.getByLabel("Company / client name *").fill("Orbit Labs");
-  await page.getByLabel("Name", { exact: true }).fill("Olu Ade");
-  await page.getByLabel("Email", { exact: true }).fill("olu@orbit.example");
+  // Required fields are enforced by the browser before anything is sent
+  await page.getByRole("button", { name: "Create client" }).click();
+  await expect(page).toHaveURL(/\/clients\/new$/);
+  expect(await page.getByLabel("Country *").evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
+  await page.getByLabel("Status *").selectOption("ONBOARDED");
+  await page.getByLabel("Country *").fill("Nigeria");
+  await page.getByLabel("First name *").fill("Olu");
+  await page.getByLabel("Last name *").fill("Ade");
+  await page.getByLabel("Email *").fill("olu@orbit.example");
+  await page.getByLabel("Phone *").fill("+234 1 280 0000");
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page.getByRole("heading", { name: /Orbit Labs/ })).toBeVisible();
 

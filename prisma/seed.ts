@@ -48,10 +48,11 @@ async function main() {
 
   const actor = { id: admin.id, role: admin.role, name: admin.name };
   const acme = await createClient(db, actor, { name: "Acme Retail", legalName: "Acme Retail Pvt Ltd", country: "United Kingdom", industry: "Retail", status: "IN_PROGRESS" },
-    [{ name: "Priya Shah", designation: "Finance Manager", email: "priya@acme.example", isPrimary: true }]);
+    [{ firstName: "Priya", lastName: "Shah", designation: "Finance Manager", email: "priya@acme.example", phone: "+44 20 7946 0101", isPrimary: true }]);
   const nova = await createClient(db, actor, { name: "Nova Health", country: "Germany", industry: "Healthcare", status: "ONBOARDED" },
-    [{ name: "Jonas Weber", designation: "CTO", email: "jonas@nova.example" }]);
-  await createClient(db, actor, { name: "Bluewave Logistics", status: "COMMUNICATED" });
+    [{ firstName: "Jonas", lastName: "Weber", designation: "CTO", email: "jonas@nova.example", phone: "+49 30 901820" }]);
+  await createClient(db, actor, { name: "Bluewave Logistics", country: "Netherlands", status: "COMMUNICATED" },
+    [{ firstName: "Daan", lastName: "Visser", email: "daan@bluewave.example", phone: "+31 20 555 0199" }]);
 
   const year = new Date().getFullYear();
   const p1 = await createProject(db, actor, { code: "ACME-ECOM", name: "E-commerce platform", clientId: acme.id, value: "48000", currency: "USD", startDate: `${year}-01-15` });

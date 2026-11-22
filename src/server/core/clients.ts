@@ -9,34 +9,43 @@ export const clientInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(200),
   legalName: opt,
   address: opt,
-  country: opt,
+  country: z.string({ error: "Country is required" }).trim().min(1, "Country is required").max(100),
   website: opt,
   industry: opt,
   taxId: opt,
   email: z.string().trim().email("Invalid email").optional().or(z.literal("")).transform((v) => v || null),
   phone: opt,
   remarks: opt,
-  status: z.nativeEnum(ClientStatus).default(ClientStatus.COMMUNICATED),
+  status: z.enum(ClientStatus, { error: "Status is required" }),
 });
 export type ClientInput = z.input<typeof clientInput>;
 
-export const contactInput = z.object({
-  name: z.string().trim().min(1, "Contact name is required").max(200),
-  designation: opt,
-  email: z.string().trim().email("Invalid email").optional().or(z.literal("")).transform((v) => v || null),
-  phone: opt,
-  department: opt,
-  isPrimary: z.boolean().default(false),
-});
+/** Digits with optional leading +, spaces, dashes, dots or brackets; at least 6 digits. */
+const PHONE = /^\+?[\d\s().-]*$/;
+
+export const contactInput = z
+  .object({
+    firstName: z.string({ error: "First name is required" }).trim().min(1, "First name is required").max(100),
+    lastName: z.string({ error: "Last name is required" }).trim().min(1, "Last name is required").max(100),
+    designation: opt,
+    email: z.string({ error: "Contact email is required" }).trim().min(1, "Contact email is required").email("Invalid contact email"),
+    phone: z.string({ error: "Contact phone is required" }).trim().min(1, "Contact phone is required").max(40)
+      .refine((v) => PHONE.test(v) && v.replace(/\D/g, "").length >= 6, "Invalid contact phone number"),
+    department: opt,
+    isPrimary: z.boolean().default(false),
+  })
+  .transform((c) => ({ ...c, name: `${c.firstName} ${c.lastName}` }));
 export type ContactInput = z.input<typeof contactInput>;
 
 function need(actor: Actor, action: "create" | "edit") {
   if (!can(actor.role, "clients", action)) throw new ForbiddenError("clients", action);
 }
 
-export async function createClient(db: Db, actor: Actor, raw: ClientInput, contacts: ContactInput[] = []) {
+/** A new client must be created with its primary contact (first/last name, email, phone). */
+export async function createClient(db: Db, actor: Actor, raw: ClientInput, contacts: ContactInput[]) {
   need(actor, "create");
   const data = clientInput.parse(raw);
+  if (!contacts.length) throw new RuleError("A primary contact is required");
   const parsedContacts = contacts.map((c) => contactInput.parse(c));
   if (parsedContacts.length && !parsedContacts.some((c) => c.isPrimary)) parsedContacts[0].isPrimary = true;
   return inTx(db, async (tx) => {

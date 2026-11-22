@@ -20,11 +20,11 @@ export async function createClientAction(_: ActionState, fd: FormData): Promise<
   const actor = await requireUser();
   let id = "";
   const res = await runAction(async () => {
-    const contactName = str(fd, "contactName").trim();
-    const contacts = contactName
-      ? [{ name: contactName, designation: str(fd, "contactDesignation"), email: str(fd, "contactEmail"), phone: str(fd, "contactPhone"), isPrimary: true }]
-      : [];
-    id = (await createClient(prisma, actor, clientFields(fd), contacts)).id;
+    const contact = {
+      firstName: str(fd, "contactFirstName"), lastName: str(fd, "contactLastName"), designation: str(fd, "contactDesignation"),
+      email: str(fd, "contactEmail"), phone: str(fd, "contactPhone"), isPrimary: true,
+    };
+    id = (await createClient(prisma, actor, clientFields(fd), [contact])).id;
   });
   if (res?.ok) redirect(`/clients/${id}`);
   return res;
@@ -52,7 +52,7 @@ export async function saveContactAction(clientId: string, contactId: string | un
   const actor = await requireUser();
   return runAction(async () => {
     await upsertContact(prisma, actor, clientId, {
-      name: str(fd, "name"), designation: str(fd, "designation"), email: str(fd, "email"),
+      firstName: str(fd, "firstName"), lastName: str(fd, "lastName"), designation: str(fd, "designation"), email: str(fd, "email"),
       phone: str(fd, "phone"), department: str(fd, "department"), isPrimary: bool(fd, "isPrimary"),
     }, contactId);
     revalidatePath(`/clients/${clientId}`);

@@ -20,6 +20,14 @@ export async function makeActor(db: PrismaClient, role: Role = Role.ADMIN): Prom
   return { id: u.id, role: u.role, name: u.name };
 }
 
+/** Required client fields (country, status) for tests. */
+export const cl = (name: string, extra: Record<string, unknown> = {}) => ({ name, country: "Testland", status: "COMMUNICATED" as const, ...extra });
+
+/** A valid primary contact; override any field. */
+export const ct = (firstName = "Test", lastName = "Contact", extra: Record<string, unknown> = {}) => ({
+  firstName, lastName, email: `${firstName}.${lastName}@client.example`.toLowerCase().replace(/[^a-z0-9.@-]/g, ""), phone: "+1 555 010 0000", ...extra,
+});
+
 export async function baseSettings(db: PrismaClient) {
   await db.companySettings.upsert({ where: { id: 1 }, update: {}, create: { id: 1, displayName: "Test Co", legalName: "Test Co Ltd" } });
   await db.invoiceTemplateSettings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });

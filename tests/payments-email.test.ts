@@ -8,7 +8,7 @@ import { recordPayment, reversePayment } from "@/server/core/payments";
 import { composeInvoiceEmail, merge, sendInvoiceEmail, type MailTransport } from "@/server/core/email";
 import { dec } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
-import { baseSettings, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -25,7 +25,7 @@ afterAll(async () => db.$disconnect());
 
 /** An issued (finalized) invoice for `amount`, due on `dueDate`. */
 async function issuedInvoice(amount = "1000", dueDate = "2026-01-31") {
-  const c = await createClient(db, admin, { name: uid("Client") }, [{ name: "Dana Primary", email: "dana@client.example", isPrimary: true }]);
+  const c = await createClient(db, admin, cl(uid("Client")), [ct("Dana", "Primary", { email: "dana@client.example", isPrimary: true })]);
   const p = await createProject(db, admin, { code: uid("P"), name: "Proj X", clientId: c.id, value: amount, currency: "USD" });
   await transitionProject(db, admin, p.id, ProjectStatus.SUBMITTED);
   await transitionProject(db, admin, p.id, ProjectStatus.APPROVED);
