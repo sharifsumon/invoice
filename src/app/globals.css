@@ -3,12 +3,42 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Brand = blue. Change these to re-skin the app; components use brand-* classes only. */
+  --color-brand-50: var(--color-blue-50);
+  --color-brand-100: var(--color-blue-100);
+  --color-brand-200: var(--color-blue-200);
+  --color-brand-300: var(--color-blue-300);
+  --color-brand-400: var(--color-blue-400);
+  --color-brand-500: var(--color-blue-500);
+  --color-brand-600: var(--color-blue-600);
+  --color-brand-700: var(--color-blue-700);
+  --color-brand-800: var(--color-blue-800);
+  --color-brand-900: var(--color-blue-900);
+
+  /* Sidebar / dark surfaces */
+  --color-ink-950: #070d1a;
+  --color-ink-900: #0b1426;
+  --color-ink-800: #14203a;
+  --color-ink-700: #1f2d4d;
+
+  /* Chart series (validated categorical pair; see dataviz palette) */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
 }
 
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Subtle scrollbar inside the dark sidebar */
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.12); border-radius: 9999px; }
+
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }

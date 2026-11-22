@@ -36,7 +36,7 @@ export default async function UsersPage() {
                 <Td>{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "—"}</Td>
                 <Td>
                   <details>
-                    <summary className="cursor-pointer text-xs text-indigo-700">Edit</summary>
+                    <summary className="cursor-pointer text-xs text-brand-700">Edit</summary>
                     <div className="mt-2 w-72">
                       <ActionForm action={updateUserAction.bind(null, u.id)} className="space-y-2">
                         <Field label="Name"><Input name="name" defaultValue={u.name} required /></Field>

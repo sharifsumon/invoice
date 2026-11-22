@@ -111,7 +111,7 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
 
 function render(col: Column, v: Cell, rc: string | null) {
   if (v === null || v === undefined || v === "") return <span className="text-slate-300">—</span>;
-  if (isLink(v)) return <Link href={v.href} className="text-indigo-700 hover:underline">{v.text}</Link>;
+  if (isLink(v)) return <Link href={v.href} className="text-brand-700 hover:underline">{v.text}</Link>;
   if (isMoney(v)) {
     if (!rc || v.currency === rc) return formatMoney(v.amount, v.currency);
     return v.converted != null

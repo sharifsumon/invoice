@@ -86,7 +86,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
             <Table head={["PO", "Date", "Status", "Value"]} empty="No POs yet.">
               {project.purchaseOrders.map((o) => (
                 <tr key={o.id}>
-                  <Td><Link href={`/pos/${o.id}`} className="text-indigo-700 hover:underline">{o.poNumber}</Link></Td>
+                  <Td><Link href={`/pos/${o.id}`} className="text-brand-700 hover:underline">{o.poNumber}</Link></Td>
                   <Td>{fmtDate(o.poDate)}</Td>
                   <Td><StatusBadge status={o.status} /></Td>
                   <Td><Money v={o.value} cur={o.currency} /></Td>
@@ -98,7 +98,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
             <Table head={["Invoice", "PO", "Status", "Due", "Total"]} empty="No invoices yet.">
               {project.invoices.map((i) => (
                 <tr key={i.id}>
-                  <Td><Link href={`/invoices/${i.id}`} className="text-indigo-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link></Td>
+                  <Td><Link href={`/invoices/${i.id}`} className="text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link></Td>
                   <Td>{i.po.poNumber}</Td>
                   <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                   <Td>{fmtDate(i.dueDate)}</Td>
@@ -110,7 +110,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
           <Card title="Details">
             {editable && (
               <details>
-                <summary className="mb-4 cursor-pointer text-sm text-indigo-700">Edit project</summary>
+                <summary className="mb-4 cursor-pointer text-sm text-brand-700">Edit project</summary>
                 <ProjectForm action={updateProjectAction.bind(null, project.id)} project={project} clients={clients} managers={managers} defaultCurrency={company.defaultCurrency} />
                 <hr className="my-5 border-slate-100" />
               </details>

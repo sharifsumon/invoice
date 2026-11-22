@@ -24,6 +24,7 @@
     "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",
     "jose": "^6.2.18",
+    "lucide-react": "^1.77.0",
     "next": "16.4.6",
     "nodemailer": "^10.6.1",
     "pdfkit": "^0.21.0",

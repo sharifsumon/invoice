@@ -43,7 +43,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
         <Table head={["Code", "Project", "Client", "Manager", "Status", "Value", "Approved on", "POs"]} empty="No projects match.">
           {projects.map((p) => (
             <tr key={p.id} className="hover:bg-slate-50">
-              <Td><Link href={`/projects/${p.id}`} className="font-medium text-indigo-700 hover:underline">{p.code}</Link></Td>
+              <Td><Link href={`/projects/${p.id}`} className="font-medium text-brand-700 hover:underline">{p.code}</Link></Td>
               <Td>{p.name}</Td>
               <Td><Link href={`/clients/${p.client.id}`} className="hover:underline">{p.client.name}</Link></Td>
               <Td>{p.manager?.name ?? "—"}</Td>

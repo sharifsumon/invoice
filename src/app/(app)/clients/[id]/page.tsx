@@ -58,7 +58,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           <Card title="Details">
             {canEdit ? (
               <details>
-                <summary className="mb-4 cursor-pointer text-sm text-indigo-700">Edit details</summary>
+                <summary className="mb-4 cursor-pointer text-sm text-brand-700">Edit details</summary>
                 <ClientForm action={updateClientAction.bind(null, client.id)} client={client} />
                 <hr className="my-5 border-slate-100" />
               </details>
@@ -73,7 +73,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             <Table head={["Code", "Project", "Status", "Value", "Approved"]} empty="No projects yet.">
               {client.projects.map((p) => (
                 <tr key={p.id}>
-                  <Td><Link href={`/projects/${p.id}`} className="text-indigo-700 hover:underline">{p.code}</Link></Td>
+                  <Td><Link href={`/projects/${p.id}`} className="text-brand-700 hover:underline">{p.code}</Link></Td>
                   <Td>{p.name}</Td>
                   <Td><StatusBadge status={p.status} /></Td>
                   <Td><Money v={p.value} cur={p.currency} /></Td>
@@ -87,7 +87,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             <Table head={["PO", "Project", "Date", "Status", "Value"]} empty="No POs yet.">
               {client.purchaseOrders.map((o) => (
                 <tr key={o.id}>
-                  <Td><Link href={`/pos/${o.id}`} className="text-indigo-700 hover:underline">{o.poNumber}</Link></Td>
+                  <Td><Link href={`/pos/${o.id}`} className="text-brand-700 hover:underline">{o.poNumber}</Link></Td>
                   <Td>{o.project.code}</Td>
                   <Td>{fmtDate(o.poDate)}</Td>
                   <Td><StatusBadge status={o.status} /></Td>
@@ -101,7 +101,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             <Table head={["Invoice", "PO", "Status", "Due", "Total", "Balance"]} empty="No invoices yet.">
               {client.invoices.map((i) => (
                 <tr key={i.id}>
-                  <Td><Link href={`/invoices/${i.id}`} className="text-indigo-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link></Td>
+                  <Td><Link href={`/invoices/${i.id}`} className="text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link></Td>
                   <Td>{i.po.poNumber}</Td>
                   <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                   <Td>{fmtDate(i.dueDate)}</Td>
@@ -126,7 +126,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
                   <div className="mt-1 text-xs text-slate-600">{c.email}{c.email && c.phone ? " · " : ""}{c.phone}</div>
                   {canEdit && (
                     <details className="mt-2">
-                      <summary className="cursor-pointer text-xs text-indigo-700">Edit</summary>
+                      <summary className="cursor-pointer text-xs text-brand-700">Edit</summary>
                       <div className="mt-2"><ContactForm action={saveContactAction.bind(null, client.id, c.id)} c={c} /></div>
                       <div className="mt-2"><ActionButton action={deleteContactAction.bind(null, client.id, c.id)} label="Remove contact" variant="ghost" confirm="Remove this contact?" /></div>
                     </details>
@@ -137,7 +137,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             </ul>
             {canEdit && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-sm text-indigo-700">+ Add contact</summary>
+                <summary className="cursor-pointer text-sm text-brand-700">+ Add contact</summary>
                 <div className="mt-3"><ContactForm action={saveContactAction.bind(null, client.id, undefined)} reset /></div>
               </details>
             )}

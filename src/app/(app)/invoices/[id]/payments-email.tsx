@@ -19,11 +19,11 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse }: { inv: In
         {payments.map((p) => (
           <tr key={p.id} className={p.state === "REVERSED" ? "opacity-60" : ""}>
             <Td>{fmtDate(p.paymentDate)}</Td>
-            <Td>{METHOD_LABELS[p.method]}{p.receivingAccount && <div className="text-xs text-slate-400">to {p.receivingAccount}</div>}</Td>
-            <Td>{p.reference ?? "—"}{p.notes && <div className="text-xs text-slate-400">{p.notes}</div>}</Td>
+            <Td className="whitespace-normal">{METHOD_LABELS[p.method]}{p.receivingAccount && <div className="text-xs text-slate-400">to {p.receivingAccount}</div>}</Td>
+            <Td className="whitespace-normal">{p.reference ?? "—"}{p.notes && <div className="text-xs text-slate-400">{p.notes}</div>}</Td>
             <Td><Money v={p.amount} cur={p.currency} className={p.state === "REVERSED" ? "line-through" : ""} /></Td>
-            <Td>{p.receiptPath ? <a href={`/api/payments/${p.id}/receipt`} target="_blank" className="text-indigo-700 hover:underline">{p.receiptName ?? "View"}</a> : "—"}</Td>
-            <Td>
+            <Td className="max-w-[140px] truncate">{p.receiptPath ? <a href={`/api/payments/${p.id}/receipt`} target="_blank" className="text-brand-700 hover:underline">{p.receiptName ?? "View"}</a> : "—"}</Td>
+            <Td className="whitespace-normal">
               {p.state === "VALID" ? <Badge tone="green">Valid</Badge> : <Badge tone="red">Reversed</Badge>}
               <div className="text-xs text-slate-400">by {p.recordedBy?.name ?? "—"}</div>
               {p.state === "REVERSED" && <div className="text-xs text-slate-500">{fmtDate(p.reversedAt)} by {p.reversedBy?.name}: {p.reversalReason}</div>}
@@ -36,7 +36,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse }: { inv: In
 
       {canRecord && open && (
         <details className="mt-5" open>
-          <summary className="cursor-pointer text-sm font-medium text-indigo-700">+ Record payment</summary>
+          <summary className="cursor-pointer text-sm font-medium text-brand-700">+ Record payment</summary>
           <ActionForm action={recordPaymentAction.bind(null, inv.id)} resetOnSuccess className="mt-3 space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label={`Amount (${inv.currency}) *`} hint={`Outstanding: ${outstanding.toFixed(2)}`}>
@@ -72,7 +72,7 @@ export async function EmailCard({ inv, logs, canSend }: { inv: Invoice; logs: L[
     <Card title="Email to client" actions={<span id="email" className="text-xs text-slate-500">{logs.length} attempt{logs.length === 1 ? "" : "s"}</span>}>
       {draft && (
         <details open>
-          <summary className="cursor-pointer text-sm font-medium text-indigo-700">{logs.length ? "Resend invoice" : "Compose email"}</summary>
+          <summary className="cursor-pointer text-sm font-medium text-brand-700">{logs.length ? "Resend invoice" : "Compose email"}</summary>
           {!smtp && (
             <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
               SMTP is not configured, so messages are written to the server&apos;s dev outbox (<code>storage/outbox</code>) and not delivered. Set SMTP_HOST in .env to send for real.

@@ -102,11 +102,11 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                 return (
                   <tr key={m.id}>
                     <Td className="tabular">{m.sequence}</Td>
-                    <Td>{m.name}{m.notes && <div className="text-xs text-slate-400">{m.notes}</div>}</Td>
+                    <Td className="min-w-[180px] whitespace-normal">{m.name}{m.notes && <div className="text-xs text-slate-400">{m.notes}</div>}</Td>
                     <Td className="tabular">{m.percentage.toDecimalPlaces(4).toString()}%</Td>
                     <Td><Money v={m.amount} cur={po.currency} /></Td>
                     <Td>{fmtDate(m.expectedDate)}</Td>
-                    <Td>{active ? <Link href={`/invoices/${active.id}`} className="text-indigo-700 hover:underline">{active.invoiceNumber ?? "Draft"}</Link>
+                    <Td>{active ? <Link href={`/invoices/${active.id}`} className="text-brand-700 hover:underline">{active.invoiceNumber ?? "Draft"}</Link>
                       : <span className="text-slate-400">{m.invoices.length ? "Cancelled — available" : "—"}</span>}</Td>
                   </tr>
                 );
@@ -121,7 +121,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
             <Table head={["Invoice", "Type", "Status", "Due", "Amount", "Total"]} empty="No invoices yet.">
               {po.invoices.map((i) => (
                 <tr key={i.id} className={i.status === "CANCELLED" ? "opacity-60" : ""}>
-                  <Td><Link href={`/invoices/${i.id}`} className="text-indigo-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>{i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}</Td>
+                  <Td><Link href={`/invoices/${i.id}`} className="text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>{i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}</Td>
                   <Td><Badge>{labelize(i.kind)}</Badge></Td>
                   <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                   <Td>{fmtDate(i.dueDate)}</Td>
@@ -170,7 +170,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
             <ul className="space-y-2 text-sm">
               {attachments.map((a) => (
                 <li key={a.id} className="rounded-lg border border-slate-100 p-2">
-                  <a href={`/api/attachments/${a.id}`} target="_blank" className="break-all font-medium text-indigo-700 hover:underline">{a.fileName}</a>
+                  <a href={`/api/attachments/${a.id}`} target="_blank" className="break-all font-medium text-brand-700 hover:underline">{a.fileName}</a>
                   <div className="text-xs text-slate-400">{(a.sizeBytes / 1024).toFixed(0)} KB · {fmtDate(a.createdAt)} · {a.uploadedBy?.name ?? "—"}</div>
                   {can(user.role, "pos", "edit") && (
                     <div className="mt-1"><ActionButton action={removeAttachmentAction.bind(null, po.id, a.id)} label="Remove" variant="ghost" reasonPrompt="Why remove this attachment?" /></div>

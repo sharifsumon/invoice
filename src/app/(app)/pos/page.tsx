@@ -51,7 +51,7 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
             const inv = invoiced.get(p.id);
             return (
               <tr key={p.id} className="hover:bg-slate-50">
-                <Td><Link href={`/pos/${p.id}`} className="font-medium text-indigo-700 hover:underline">{p.poNumber}</Link></Td>
+                <Td><Link href={`/pos/${p.id}`} className="font-medium text-brand-700 hover:underline">{p.poNumber}</Link></Td>
                 <Td>{p.client.name}</Td>
                 <Td><Link href={`/projects/${p.project.id}`} className="hover:underline">{p.project.code}</Link></Td>
                 <Td>{fmtDate(p.poDate)}</Td>

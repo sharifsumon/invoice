@@ -113,7 +113,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
               <Table head={["Description", "Qty", "Rate", "Amount"]}>
                 {inv.lineItems.map((l) => (
                   <tr key={l.id}>
-                    <Td>{l.description}</Td>
+                    <Td className="min-w-[260px] whitespace-normal">{l.description}</Td>
                     <Td className="tabular">{l.quantity.toDecimalPlaces(4).toString()}</Td>
                     <Td><Money v={l.unitPrice} cur={inv.currency} /></Td>
                     <Td><Money v={l.amount} cur={inv.currency} /></Td>

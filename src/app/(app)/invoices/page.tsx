@@ -61,11 +61,11 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
             {invoices.map((i) => (
               <tr key={i.id} className={`hover:bg-slate-50 ${i.status === "CANCELLED" ? "opacity-60" : ""}`}>
                 {canExport && <Td className="w-8">{i.invoiceNumber && <input type="checkbox" name="ids" value={i.id} aria-label={`Select ${i.invoiceNumber}`} />}</Td>}
-                <Td><Link href={`/invoices/${i.id}`} className="font-medium text-indigo-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>
+                <Td><Link href={`/invoices/${i.id}`} className="font-medium text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>
                   {i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}
                   <div className="text-xs text-slate-400">{labelize(i.kind)}
                     {i.invoiceNumber && i.status !== "CANCELLED" && can(user.role, "invoices", "email") && (
-                      <> · <Link href={`/invoices/${i.id}#email`} className="text-indigo-600 hover:underline">Email</Link></>
+                      <> · <Link href={`/invoices/${i.id}#email`} className="text-brand-600 hover:underline">Email</Link></>
                     )}</div></Td>
                 <Td>{i.client.name}</Td>
                 <Td>{i.project.code}<div className="text-xs text-slate-400">PO {i.po.poNumber}</div></Td>

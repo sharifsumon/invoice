@@ -38,7 +38,7 @@ test("platform: health, security headers, auth gate", async ({ request, page }) 
 test("full lifecycle: client → project → PO → milestone invoices → payment → email → reports", async ({ page }) => {
   page.on("dialog", (d) => d.accept());
   await login(page, E2E_ADMIN);
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
 
   // Client with primary contact
   await page.goto("/clients/new");
@@ -127,7 +127,7 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
 
 test("role-based access: viewer is read-only", async ({ page }) => {
   await login(page, E2E_VIEWER);
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
   await page.goto("/settings");
   await expect(page).toHaveURL(/denied=1/);
@@ -139,7 +139,7 @@ test("role-based access: viewer is read-only", async ({ page }) => {
 
 test("two-factor sign-in", async ({ page, context }) => {
   await login(page, E2E_ADMIN);
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
   await page.goto("/account");
   await page.getByRole("button", { name: "Set up two-factor" }).click();
   const secret = (await page.locator("code").first().innerText()).trim();
@@ -155,5 +155,5 @@ test("two-factor sign-in", async ({ page, context }) => {
   await expect(page.getByRole("alert").filter({ hasText: "not valid" })).toBeVisible();
   await page.getByLabel("Authentication code").fill(totp(secret));
   await page.getByRole("button", { name: "Verify" }).click();
-  await expect(page.getByRole("heading", { name: /Welcome/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
 });

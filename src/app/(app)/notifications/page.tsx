@@ -20,8 +20,8 @@ export default async function NotificationsPage() {
           {items.map((n) => (
             <li key={n.id}>
               <form action={openNotificationAction.bind(null, n.id)}>
-                <button className={cx("flex w-full items-start gap-3 px-2 py-3 text-left hover:bg-slate-50", !n.readAt && "bg-indigo-50/40")}>
-                  <span className={cx("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.readAt ? "bg-transparent" : "bg-indigo-600")} />
+                <button className={cx("flex w-full items-start gap-3 px-2 py-3 text-left hover:bg-slate-50", !n.readAt && "bg-brand-50/40")}>
+                  <span className={cx("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.readAt ? "bg-transparent" : "bg-brand-600")} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className={cx("text-sm", n.readAt ? "text-slate-700" : "font-semibold text-slate-900")}>{n.title}</span>

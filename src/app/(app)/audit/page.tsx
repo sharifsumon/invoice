@@ -30,12 +30,12 @@ export default async function AuditPage({ searchParams }: PageProps<"/audit">) {
               <Td className="whitespace-nowrap text-xs">{l.createdAt.toISOString().slice(0, 19).replace("T", " ")}</Td>
               <Td>{l.actor?.name ?? "system"}</Td>
               <Td className="font-mono text-xs">{l.action}</Td>
-              <Td className="text-xs">{LINKS[l.entityType] && l.entityId !== "*" ? <Link className="text-indigo-700 hover:underline" href={LINKS[l.entityType] + l.entityId}>{l.entityType}</Link> : l.entityType}</Td>
-              <Td className="max-w-md text-xs">
+              <Td className="text-xs">{LINKS[l.entityType] && l.entityId !== "*" ? <Link className="text-brand-700 hover:underline" href={LINKS[l.entityType] + l.entityId}>{l.entityType}</Link> : l.entityType}</Td>
+              <Td className="max-w-md whitespace-normal text-xs">
                 {l.reason && <div className="text-slate-700">Reason: {l.reason}</div>}
                 {(l.before || l.after) && (
                   <details>
-                    <summary className="cursor-pointer text-indigo-700">Changes</summary>
+                    <summary className="cursor-pointer text-brand-700">Changes</summary>
                     <pre className="mt-1 max-h-64 overflow-auto rounded bg-slate-50 p-2 text-[11px]">{JSON.stringify({ before: l.before, after: l.after }, null, 2)}</pre>
                   </details>
                 )}
