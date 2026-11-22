@@ -1,0 +1,37 @@
+# Single-server deployment: PostgreSQL + app. Put a TLS reverse proxy (Caddy/nginx) in front of port 3000.
+#   cp .env.example .env.production   # fill in secrets; DATABASE_URL host must be "db"
+#   docker compose up -d --build
+#   docker compose exec app npx prisma db seed      # first run only: creates the admin account
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: invoicecrm
+      POSTGRES_USER: invoicecrm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the shell or a .env file next to this compose file}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoicecrm -d invoicecrm"]
+      interval: 10s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      STORAGE_DIR: /app/storage
+    ports:
+      - "127.0.0.1:3000:3000"   # only reachable through the reverse proxy
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  storage:

@@ -1,0 +1,540 @@
+// CRM, Project, PO & Invoice Management System — core schema (BRD v1.2, phases 1–3)
+// Money: Decimal(18,2). Percentages: Decimal(9,4). Never floats.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────── Users & roles ─────────────
+
+enum Role {
+  ADMIN
+  MANAGEMENT
+  BUSINESS_DEVELOPMENT
+  PROJECT_MANAGER
+  FINANCE
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(VIEWER)
+  active       Boolean  @default(true)
+  /// Bumped on password change, deactivation, role change or "sign out everywhere" — invalidates all sessions.
+  sessionVersion Int    @default(1)
+  /// TOTP (RFC 6238) secret, base32. Enabled only once confirmed with a valid code.
+  mfaSecret    String?
+  mfaEnabled   Boolean  @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  managedProjects   Project[]         @relation("ProjectManager")
+  activities        ClientActivity[]
+  auditLogs         AuditLog[]
+  invoicesCreated   Invoice[]         @relation("InvoiceCreatedBy")
+  invoicesFinalized Invoice[]         @relation("InvoiceFinalizedBy")
+  invoicesCancelled Invoice[]         @relation("InvoiceCancelledBy")
+  posApproved       PurchaseOrder[]   @relation("POApprovedBy")
+  attachments       Attachment[]
+  notifications     Notification[]
+  paymentsRecorded  Payment[]         @relation("PaymentRecordedBy")
+  paymentsReversed  Payment[]         @relation("PaymentReversedBy")
+  emailsSent        InvoiceEmailLog[]
+}
+
+// ───────────── Clients ─────────────
+
+enum ClientStatus {
+  PROSPECT
+  COMMUNICATED
+  ONBOARDED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  INACTIVE
+}
+
+model Client {
+  id        String       @id @default(cuid())
+  name      String
+  legalName String?
+  address   String?
+  country   String?
+  website   String?
+  industry  String?
+  taxId     String?
+  email     String?
+  phone     String?
+  remarks   String?
+  status    ClientStatus @default(COMMUNICATED)
+  archived  Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  contacts       ClientContact[]
+  activities     ClientActivity[]
+  projects       Project[]
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+
+  @@index([name])
+}
+
+model ClientContact {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  designation String?
+  email       String?
+  phone       String?
+  department  String?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+enum ActivityType {
+  NOTE
+  MEETING
+  CALL
+  EMAIL
+  STATUS_CHANGE
+}
+
+model ClientActivity {
+  id         String       @id @default(cuid())
+  clientId   String
+  client     Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type       ActivityType
+  subject    String
+  body       String?
+  occurredAt DateTime     @default(now())
+  userId     String?
+  user       User?        @relation(fields: [userId], references: [id])
+  createdAt  DateTime     @default(now())
+
+  @@index([clientId, occurredAt])
+}
+
+// ───────────── Projects ─────────────
+
+enum ProjectStatus {
+  PROPOSED
+  DRAFT
+  SUBMITTED
+  APPROVED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  code           String        @unique
+  name           String
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id])
+  description    String?
+  startDate      DateTime?     @db.Date
+  plannedEndDate DateTime?     @db.Date
+  actualEndDate  DateTime?     @db.Date
+  managerId      String?
+  manager        User?         @relation("ProjectManager", fields: [managerId], references: [id])
+  status         ProjectStatus @default(DRAFT)
+  value          Decimal       @db.Decimal(18, 2)
+  currency       String        @db.Char(3)
+  approved       Boolean       @default(false) // true once approved; stays true through In Progress / Completed
+  approvalDate   DateTime?     @db.Date
+  remarks        String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+
+  @@index([clientId])
+  @@index([approved, approvalDate])
+}
+
+// ───────────── Purchase orders ─────────────
+
+enum POStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  poNumber     String    @unique
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id])
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  poDate       DateTime  @db.Date
+  value        Decimal   @db.Decimal(18, 2)
+  currency     String    @db.Char(3)
+  paymentTerms String?
+  reference    String?
+  remarks      String?
+  status       POStatus  @default(DRAFT)
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("POApprovedBy", fields: [approvedById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  milestones PaymentMilestone[]
+  invoices   Invoice[]
+
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model PaymentMilestone {
+  id           String        @id @default(cuid())
+  poId         String
+  po           PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  sequence     Int
+  name         String
+  percentage   Decimal       @db.Decimal(9, 4)
+  amount       Decimal       @db.Decimal(18, 2)
+  expectedDate DateTime?     @db.Date
+  notes        String?
+  createdAt    DateTime      @default(now())
+
+  invoices Invoice[]
+
+  @@unique([poId, sequence])
+}
+
+// ───────────── Invoices ─────────────
+
+enum InvoiceKind {
+  MILESTONE
+  MANUAL
+}
+
+/// Lifecycle + payment state. Overdue is derived (dueDate < today AND outstanding > 0), never stored.
+enum InvoiceStatus {
+  DRAFT
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String?       @unique // assigned at finalization
+  kind          InvoiceKind
+  status        InvoiceStatus @default(DRAFT)
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id])
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id])
+  milestoneId   String?
+  milestone     PaymentMilestone? @relation(fields: [milestoneId], references: [id])
+
+  invoiceDate DateTime? @db.Date
+  dueDate     DateTime? @db.Date
+  currency    String    @db.Char(3)
+
+  /// PO-allocated (pre-tax) amount — this is what counts against the PO cap.
+  subtotal   Decimal @db.Decimal(18, 2)
+  discount   Decimal @default(0) @db.Decimal(18, 2)
+  taxRate    Decimal @default(0) @db.Decimal(9, 4)
+  taxAmount  Decimal @default(0) @db.Decimal(18, 2)
+  total      Decimal @db.Decimal(18, 2)
+  amountPaid Decimal @default(0) @db.Decimal(18, 2)
+
+  notes String?
+  terms String?
+
+  /// Frozen copy of everything printed on the invoice (company, client, template, lines) at finalization.
+  snapshot Json?
+  version  Int   @default(1)
+
+  createdById   String?
+  createdBy     User?     @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  finalizedAt   DateTime?
+  finalizedById String?
+  finalizedBy   User?     @relation("InvoiceFinalizedBy", fields: [finalizedById], references: [id])
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelledBy   User?     @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
+  cancelReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems InvoiceLineItem[]
+  documents InvoiceDocument[]
+  payments  Payment[]
+  emailLogs InvoiceEmailLog[]
+
+  @@index([poId, status])
+  @@index([clientId])
+  @@index([dueDate])
+  // Partial unique index "Invoice_active_milestone_key" (one non-cancelled invoice per milestone)
+  // and the PO-cap trigger are created in raw SQL in the migration.
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sequence    Int
+  description String
+  quantity    Decimal @db.Decimal(18, 4)
+  unitPrice   Decimal @db.Decimal(18, 2)
+  amount      Decimal @db.Decimal(18, 2)
+}
+
+model InvoiceDocument {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+  version      Int
+  filePath     String
+  sha256       String
+  sizeBytes    Int
+  revisionNote String?
+  createdAt    DateTime @default(now())
+
+  @@unique([invoiceId, version])
+}
+
+/// Sequential invoice numbers. key = "ALL" (never reset) or the year, e.g. "2026" (yearly reset).
+model InvoiceSequence {
+  key  String @id
+  next Int    @default(1)
+}
+
+// ───────────── Payments (phase 4) ─────────────
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CHEQUE
+  CASH
+  CARD
+  ONLINE
+  OTHER
+}
+
+enum PaymentState {
+  VALID
+  REVERSED
+}
+
+/// Never hard-deleted. Corrections are reversals (state = REVERSED) with a reason.
+model Payment {
+  id               String        @id @default(cuid())
+  invoiceId        String
+  invoice          Invoice       @relation(fields: [invoiceId], references: [id])
+  amount           Decimal       @db.Decimal(18, 2)
+  currency         String        @db.Char(3)
+  paymentDate      DateTime      @db.Date
+  method           PaymentMethod
+  reference        String?
+  receivingAccount String?
+  notes            String?
+  receiptPath      String?
+  receiptName      String?
+  receiptMime      String?
+  state            PaymentState  @default(VALID)
+  recordedById     String?
+  recordedBy       User?         @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  reversedAt       DateTime?
+  reversedById     String?
+  reversedBy       User?         @relation("PaymentReversedBy", fields: [reversedById], references: [id])
+  reversalReason   String?
+  createdAt        DateTime      @default(now())
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+}
+
+// ───────────── Invoice email (phase 4) ─────────────
+
+model EmailTemplate {
+  key       String   @id // "invoice"
+  subject   String
+  body      String
+  updatedAt DateTime @updatedAt
+}
+
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+/// One row per send attempt (including resends and failures). Sending never changes invoice payment state.
+model InvoiceEmailLog {
+  id                String      @id @default(cuid())
+  invoiceId         String
+  invoice           Invoice     @relation(fields: [invoiceId], references: [id])
+  senderId          String?
+  sender            User?       @relation(fields: [senderId], references: [id])
+  fromAddress       String
+  toAddresses       String[]
+  ccAddresses       String[]
+  bccAddresses      String[]
+  subject           String
+  body              String
+  attachmentName    String
+  attachmentSha256  String
+  status            EmailStatus
+  providerMessageId String?
+  providerResponse  String?
+  error             String?
+  transport         String // smtp | dev-outbox
+  createdAt         DateTime    @default(now())
+
+  @@index([invoiceId, createdAt])
+}
+
+// ───────────── Notifications (phase 5) ─────────────
+
+enum NotificationEvent {
+  INVOICE_DUE_SOON
+  INVOICE_OVERDUE
+  PO_APPROVED
+  INVOICE_GENERATION_FAILED
+  EMAIL_FAILED
+}
+
+model Notification {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     NotificationEvent
+  title     String
+  body      String?
+  link      String?
+  dedupeKey String
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+}
+
+/// Which roles receive which events (BRD §5.9 "configurable by role and event").
+model NotificationSetting {
+  event   NotificationEvent
+  role    Role
+  enabled Boolean           @default(true)
+
+  @@id([event, role])
+}
+
+// ───────────── Settings ─────────────
+
+model CompanySettings {
+  id                 Int     @id @default(1)
+  legalName          String  @default("Your Company Ltd")
+  displayName        String  @default("Your Company")
+  address            String?
+  email              String?
+  phone              String?
+  website            String?
+  registrationNumber String?
+  taxNumber          String?
+  defaultCurrency    String  @default("USD") @db.Char(3)
+  bankDetails        String?
+  paymentTermsDays   Int     @default(30)
+  defaultNotes       String?
+  logoPath           String?
+  logoMime           String?
+  updatedAt          DateTime @updatedAt
+}
+
+enum NumberReset {
+  NEVER
+  YEARLY
+}
+
+model InvoiceTemplateSettings {
+  id             Int         @id @default(1)
+  title          String      @default("INVOICE")
+  logoPosition   String      @default("left") // left | right
+  headerText     String?
+  footerText     String?
+  pageSize       String      @default("A4")
+  numberPrefix   String      @default("INV-")
+  numberPadding  Int         @default(5)
+  numberReset    NumberReset @default(YEARLY)
+  showTax        Boolean     @default(false)
+  taxLabel       String      @default("VAT")
+  defaultTaxRate Decimal     @default(0) @db.Decimal(9, 4)
+  defaultTerms   String?
+  showAmountInWords Boolean  @default(true)
+  updatedAt      DateTime    @updatedAt
+}
+
+// ───────────── Files & audit ─────────────
+
+model Attachment {
+  id           String   @id @default(cuid())
+  entityType   String
+  entityId     String
+  fileName     String
+  filePath     String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  fromCurrency  String   @db.Char(3)
+  toCurrency    String   @db.Char(3)
+  rate          Decimal  @db.Decimal(18, 8)
+  effectiveDate DateTime @db.Date
+  source        String?
+  createdAt     DateTime @default(now())
+
+  @@unique([fromCurrency, toCurrency, effectiveDate])
+}
+
+/// Append-only. UPDATE/DELETE are blocked by a trigger (see migration).
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

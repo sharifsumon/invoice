@@ -1,0 +1,91 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireUser } from "@/server/auth";
+import { runAction, str, type ActionState } from "@/server/action";
+import { cancelAndReissue, cancelInvoice, finalizeInvoice, updateDraftInvoice } from "@/server/core/invoices";
+import { RuleError } from "@/server/core/permissions";
+import { recordPayment, reversePayment } from "@/server/core/payments";
+import { parseAddresses, sendInvoiceEmail } from "@/server/core/email";
+import type { PaymentMethod } from "@/generated/prisma/enums";
+import { prisma } from "@/server/db";
+
+export async function recordPaymentAction(id: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  return runAction(async () => {
+    const f = fd.get("receipt");
+    const receipt = f instanceof File && f.size > 0 ? { name: f.name, data: Buffer.from(await f.arrayBuffer()) } : null;
+    await recordPayment(prisma, actor, id, {
+      amount: str(fd, "amount"), paymentDate: str(fd, "paymentDate"), method: str(fd, "method") as PaymentMethod,
+      reference: str(fd, "reference"), receivingAccount: str(fd, "receivingAccount"), notes: str(fd, "notes"),
+    }, receipt);
+    revalidatePath(`/invoices/${id}`);
+    return "Payment recorded";
+  });
+}
+
+export async function reversePaymentAction(invoiceId: string, paymentId: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  return runAction(async () => {
+    await reversePayment(prisma, actor, paymentId, str(fd, "reason"));
+    revalidatePath(`/invoices/${invoiceId}`);
+    return "Payment reversed";
+  });
+}
+
+export async function sendEmailAction(id: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  return runAction(async () => {
+    const log = await sendInvoiceEmail(prisma, actor, id, {
+      to: parseAddresses(str(fd, "to")), cc: parseAddresses(str(fd, "cc")), bcc: parseAddresses(str(fd, "bcc")),
+      subject: str(fd, "subject"), body: str(fd, "body"),
+    });
+    revalidatePath(`/invoices/${id}`);
+    if (log.status === "FAILED") throw new RuleError(`Sending failed: ${log.error ?? "unknown error"}. The attempt was logged; you can retry.`);
+    return log.transport === "dev-outbox"
+      ? "Email written to the dev outbox (SMTP is not configured, so nothing was delivered)"
+      : `Email sent to ${log.toAddresses.join(", ")}`;
+  });
+}
+
+export async function updateDraftAction(id: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  return runAction(async () => {
+    let lines: { description: string; quantity: string; unitPrice: string }[] | undefined;
+    const raw = str(fd, "lines");
+    if (raw) { try { lines = JSON.parse(raw); } catch { throw new RuleError("Invalid line items"); } }
+    await updateDraftInvoice(prisma, actor, id, {
+      lines, discount: fd.has("discount") ? str(fd, "discount") : undefined, taxRate: str(fd, "taxRate") || undefined,
+      invoiceDate: str(fd, "invoiceDate"), dueDate: str(fd, "dueDate"), notes: str(fd, "notes"), terms: str(fd, "terms"),
+    });
+    revalidatePath(`/invoices/${id}`);
+    return "Draft saved";
+  });
+}
+
+export async function finalizeAction(id: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  let number = "";
+  const res = await runAction(async () => {
+    const inv = await finalizeInvoice(prisma, actor, id, { invoiceDate: str(fd, "invoiceDate") || undefined, dueDate: str(fd, "dueDate") || undefined });
+    number = inv.invoiceNumber ?? "";
+  });
+  if (res?.ok) redirect(`/invoices/${id}?flash=${encodeURIComponent(`Finalized as ${number}`)}`);
+  return res;
+}
+
+export async function cancelAction(id: string, _: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  const res = await runAction(async () => { await cancelInvoice(prisma, actor, id, str(fd, "reason")); });
+  if (res?.ok) redirect(`/invoices/${id}?flash=${encodeURIComponent("Invoice cancelled — its PO allocation has been released")}`);
+  return res;
+}
+
+export async function reissueAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const actor = await requireUser();
+  let newId = "";
+  const res = await runAction(async () => { newId = (await cancelAndReissue(prisma, actor, id, str(fd, "reason"))).id; });
+  if (res?.ok) redirect(`/invoices/${newId}`);
+  return res;
+}

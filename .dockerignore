@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+.pg-superuser.local
+storage
+.e2e-storage
+backups
+test-results
+playwright-report
+src/generated
+*.log
