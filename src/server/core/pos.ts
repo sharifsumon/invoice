@@ -106,7 +106,8 @@ export async function updatePO(db: Db, actor: Actor, id: string, raw: POInput) {
         poDate: parseDate(data.poDate)!,
         value,
         currency: project.currency, // one currency: the project's (= company currency when it was created)
-        paymentTerms: data.paymentTerms || null,
+        // Payment terms are no longer entered on the PO form; keep any value an older PO already has.
+        paymentTerms: data.paymentTerms === undefined ? before.paymentTerms : data.paymentTerms || null,
         reference: data.reference || null,
         remarks: data.remarks || null,
         status: before.status === POStatus.REJECTED ? POStatus.DRAFT : before.status,

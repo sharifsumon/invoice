@@ -5,6 +5,8 @@ import { buttonClass, inputClass } from "@/components/ui";
 
 export interface MilestoneRow { name: string; percentage: string; expectedDate: string; notes: string }
 
+const labelCls = "mb-1.5 block text-xs font-medium text-slate-600";
+
 /** Preview only — the server re-computes amounts with decimal arithmetic on save and approval. */
 function cents(value: string, pct: string) {
   const v = Number(value), p = Number(pct);
@@ -38,15 +40,30 @@ export function MilestoneEditor({ initial, defaultValue, currency }: { initial: 
           {rows.map((r, i) => {
             const amt = cents(value, r.percentage);
             return (
-              <div key={i} className="grid grid-cols-12 items-start gap-2 px-3 py-2">
-                <input aria-label={`Milestone ${i + 1} name`} placeholder={`Milestone ${i + 1} name`} value={r.name} onChange={(e) => set(i, "name", e.target.value)} className={`${inputClass} col-span-12 lg:col-span-5`} />
-                <input aria-label="Percentage" placeholder="%" inputMode="decimal" value={r.percentage} onChange={(e) => set(i, "percentage", e.target.value)} className={`${inputClass} col-span-3 lg:col-span-2`} />
-                <input aria-label="Expected date" type="date" value={r.expectedDate} onChange={(e) => set(i, "expectedDate", e.target.value)} className={`${inputClass} col-span-5 lg:col-span-3`} />
-                <div className="col-span-4 flex items-center justify-between gap-2 pt-2 text-xs lg:col-span-2">
-                  <span className="tabular text-slate-500">{amt !== null ? amt.toFixed(2) : "—"}</span>
-                  <button type="button" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} className="text-rose-600 hover:underline">Remove</button>
+              <div key={i} className="grid grid-cols-12 items-end gap-3 px-3 py-3">
+                <label className="col-span-12 lg:col-span-5">
+                  <span className={labelCls}>Milestone name</span>
+                  <input aria-label={`Milestone ${i + 1} name`} placeholder={`e.g. Milestone ${i + 1}`} value={r.name} onChange={(e) => set(i, "name", e.target.value)} className={inputClass} />
+                </label>
+                <label className="col-span-4 lg:col-span-2">
+                  <span className={labelCls}>Percentage</span>
+                  <span className="relative block">
+                    <input aria-label={`Milestone ${i + 1} percentage`} placeholder="0" inputMode="decimal" value={r.percentage} onChange={(e) => set(i, "percentage", e.target.value)} className={`${inputClass} pr-8`} />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-500" aria-hidden>%</span>
+                  </span>
+                </label>
+                <label className="col-span-8 lg:col-span-3">
+                  <span className={labelCls}>Due date</span>
+                  <input aria-label={`Milestone ${i + 1} due date`} type="date" value={r.expectedDate} onChange={(e) => set(i, "expectedDate", e.target.value)} className={inputClass} />
+                </label>
+                <div className="col-span-12 flex items-end justify-between gap-3 lg:col-span-2">
+                  <div>
+                    <span className={labelCls}>Amount</span>
+                    <span className="tabular block py-2 text-sm font-medium text-slate-800">{amt !== null ? amt.toFixed(2) : "—"}</span>
+                  </div>
+                  <button type="button" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} aria-label={`Remove milestone ${i + 1}`}
+                    className="mb-2 text-xs font-medium text-rose-600 hover:underline">Remove</button>
                 </div>
-                <input aria-label="Notes" placeholder="Notes (optional)" value={r.notes} onChange={(e) => set(i, "notes", e.target.value)} className={`${inputClass} col-span-12`} />
               </div>
             );
           })}

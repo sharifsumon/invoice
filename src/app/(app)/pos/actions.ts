@@ -36,7 +36,7 @@ function fields(fd: FormData) {
   try { milestones = JSON.parse(str(fd, "milestones") || "[]"); } catch { throw new RuleError("Invalid milestone data"); }
   return {
     poNumber: str(fd, "poNumber"), projectId: str(fd, "projectId"), poDate: str(fd, "poDate"), value: str(fd, "value"),
-    currency: str(fd, "currency") || undefined, paymentTerms: str(fd, "paymentTerms"), reference: str(fd, "reference"),
+    currency: str(fd, "currency") || undefined, reference: str(fd, "reference"),
     remarks: str(fd, "remarks"), milestones,
   };
 }

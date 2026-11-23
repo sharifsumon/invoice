@@ -189,7 +189,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
           </Card>
           <Card title="Details">
             <DL items={[
-              ["PO date", fmtDate(po.poDate)], ["Currency", po.currency], ["Payment terms", po.paymentTerms],
+              ["PO date", fmtDate(po.poDate)], ["Currency", po.currency],
               ["Client reference", po.reference], ["Approved", po.approvedAt ? `${fmtDate(po.approvedAt)} by ${po.approvedBy?.name ?? "—"}` : null],
               ["Remarks", po.remarks],
             ]} />

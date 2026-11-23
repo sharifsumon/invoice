@@ -25,7 +25,6 @@ export function POForm({ action, po, projects, defaultProjectId, defaultCurrency
             {projects.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name} ({p.client.name})</option>)}
           </Select>
         </Field>
-        <Field label="Payment terms"><Input name="paymentTerms" defaultValue={po?.paymentTerms ?? ""} placeholder="e.g. Net 30" /></Field>
         <Field label="Client reference" className="sm:col-span-2"><Input name="reference" defaultValue={po?.reference ?? ""} /></Field>
         <div className="sm:col-span-2">
           <MilestoneEditor defaultValue={po?.value.toString() ?? ""} currency={currency}
