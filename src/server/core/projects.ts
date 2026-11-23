@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ProjectStatus } from "@/generated/prisma/enums";
 import { audit, inTx, parseDate, today, type Actor, type Db } from "./common";
 import { dec, money } from "./money";
+import { getSettings } from "./settings";
 import { can, ForbiddenError, RuleError } from "./permissions";
 
 const optStr = z.string().trim().max(5000).optional().transform((v) => (v ? v : null));
@@ -17,7 +18,8 @@ export const projectInput = z.object({
   actualEndDate: optDate,
   managerId: z.string().optional().transform((v) => v || null),
   value: z.string().min(1, "Project value is required"),
-  currency: z.string().trim().length(3, "Use a 3-letter currency code").transform((v) => v.toUpperCase()),
+  /** Ignored: projects always use the company currency from Settings (kept for callers that still send it). */
+  currency: z.string().optional(),
   remarks: optStr,
 });
 export type ProjectInput = z.input<typeof projectInput>;
@@ -29,29 +31,38 @@ function parseValue(v: string) {
   return d;
 }
 
-/** Statuses that count as "approved" for Business Value (BR-01). */
-const APPROVED_FAMILY: ProjectStatus[] = [ProjectStatus.APPROVED, ProjectStatus.IN_PROGRESS, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED];
-
+/**
+ * Project lifecycle: Draft → In Progress ⇄ On Hold → Completed, or Cancelled.
+ * Moving a project to In Progress (or straight to Completed) is its approval: from then on it counts toward
+ * Business Value (BR-01), using the approval date. On Hold keeps whatever approval the project already had.
+ * Completed projects can be reopened; cancelled ones can go back to Draft.
+ */
+export const PROJECT_STATUSES: ProjectStatus[] = [
+  ProjectStatus.DRAFT, ProjectStatus.IN_PROGRESS, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED,
+];
 export const PROJECT_TRANSITIONS: Record<ProjectStatus, ProjectStatus[]> = {
-  PROPOSED: [ProjectStatus.DRAFT, ProjectStatus.SUBMITTED, ProjectStatus.CANCELLED],
-  DRAFT: [ProjectStatus.PROPOSED, ProjectStatus.SUBMITTED, ProjectStatus.CANCELLED],
-  SUBMITTED: [ProjectStatus.APPROVED, ProjectStatus.REJECTED, ProjectStatus.DRAFT],
-  APPROVED: [ProjectStatus.IN_PROGRESS, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED],
-  IN_PROGRESS: [ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED],
-  ON_HOLD: [ProjectStatus.IN_PROGRESS, ProjectStatus.CANCELLED],
-  COMPLETED: [],
-  CANCELLED: [],
-  REJECTED: [ProjectStatus.DRAFT],
+  DRAFT: [ProjectStatus.IN_PROGRESS, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED],
+  IN_PROGRESS: [ProjectStatus.DRAFT, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED],
+  ON_HOLD: [ProjectStatus.DRAFT, ProjectStatus.IN_PROGRESS, ProjectStatus.COMPLETED, ProjectStatus.CANCELLED],
+  COMPLETED: [ProjectStatus.IN_PROGRESS],
+  CANCELLED: [ProjectStatus.DRAFT],
 };
+const STARTS_WORK: ProjectStatus[] = [ProjectStatus.IN_PROGRESS, ProjectStatus.COMPLETED];
 
-export async function createProject(db: Db, actor: Actor, raw: ProjectInput, initial: "DRAFT" | "PROPOSED" = "DRAFT") {
+/** Whether moving `project` to `to` approves it (and therefore needs the "approve" permission). */
+export function transitionApproves(project: { approved: boolean }, to: ProjectStatus) {
+  return !project.approved && STARTS_WORK.includes(to);
+}
+
+export async function createProject(db: Db, actor: Actor, raw: ProjectInput) {
   if (!can(actor.role, "projects", "create")) throw new ForbiddenError("projects", "create");
   const data = projectInput.parse(raw);
   const value = parseValue(data.value);
+  const { company } = await getSettings(db);
   return inTx(db, async (tx) => {
     const client = await tx.client.findUnique({ where: { id: data.clientId } });
     if (!client || client.archived) throw new RuleError("Select an active client");
-    const p = await tx.project.create({ data: { ...data, value, status: initial } });
+    const p = await tx.project.create({ data: { ...data, value, currency: company.defaultCurrency, status: ProjectStatus.DRAFT } });
     await audit(tx, actor, "project.created", "Project", p.id, { after: p });
     return p;
   });
@@ -64,27 +75,23 @@ export async function updateProject(db: Db, actor: Actor, id: string, raw: Proje
   const value = parseValue(data.value);
   return inTx(db, async (tx) => {
     const before = await tx.project.findUniqueOrThrow({ where: { id } });
-    if (before.status === ProjectStatus.CANCELLED || before.status === ProjectStatus.COMPLETED) {
-      throw new RuleError(`A ${before.status.toLowerCase()} project cannot be edited`);
+    if (before.status === ProjectStatus.CANCELLED) {
+      throw new RuleError("A cancelled project cannot be edited — move it back to Draft first");
     }
     if (before.clientId !== data.clientId) {
       const linked = await tx.purchaseOrder.count({ where: { projectId: id } });
       if (linked) throw new RuleError("Client cannot be changed once POs exist for this project");
     }
     const valueChanged = !before.value.eq(value);
-    const currencyChanged = before.currency !== data.currency;
-    if (before.approved && (valueChanged || currencyChanged)) {
-      if (!reason?.trim()) throw new RuleError("A reason is required to change the value of an approved project");
-      if (currencyChanged) {
-        const linked = await tx.purchaseOrder.count({ where: { projectId: id } });
-        if (linked) throw new RuleError("Currency cannot be changed once POs exist for this project");
-      }
+    if (before.approved && valueChanged && !reason?.trim()) {
+      throw new RuleError("A reason is required to change the value of an approved project");
     }
-    const p = await tx.project.update({ where: { id }, data: { ...data, value } });
+    // Currency never changes on edit: it was fixed from Settings when the project was created.
+    const p = await tx.project.update({ where: { id }, data: { ...data, value, currency: before.currency } });
     if (before.approved && valueChanged) {
       await audit(tx, actor, "project.value_changed", "Project", id, {
         before: { value: before.value, currency: before.currency },
-        after: { value, currency: data.currency },
+        after: { value, currency: before.currency },
         reason: reason!.trim(),
       });
     }
@@ -96,23 +103,26 @@ export async function updateProject(db: Db, actor: Actor, id: string, raw: Proje
 export async function transitionProject(
   db: Db, actor: Actor, id: string, to: ProjectStatus, opts: { approvalDate?: string; reason?: string } = {},
 ) {
-  const needsApprove = to === ProjectStatus.APPROVED || to === ProjectStatus.REJECTED;
-  const perm = needsApprove ? "approve" : "edit";
-  if (!can(actor.role, "projects", perm)) throw new ForbiddenError("projects", perm);
+  if (!can(actor.role, "projects", "edit") && !can(actor.role, "projects", "approve")) throw new ForbiddenError("projects", "edit");
 
   return inTx(db, async (tx) => {
     const before = await tx.project.findUniqueOrThrow({ where: { id } });
+    if (before.status === to) return before;
     if (!PROJECT_TRANSITIONS[before.status].includes(to)) {
       throw new RuleError(`Cannot move a project from ${before.status} to ${to}`);
     }
+    if (transitionApproves(before, to) && !can(actor.role, "projects", "approve")) throw new ForbiddenError("projects", "approve");
+    if (!transitionApproves(before, to) && !can(actor.role, "projects", "edit")) throw new ForbiddenError("projects", "edit");
+    if (to === ProjectStatus.DRAFT && before.status !== ProjectStatus.CANCELLED) {
+      const linked = await tx.purchaseOrder.count({ where: { projectId: id, status: { not: "CANCELLED" } } });
+      if (linked) throw new RuleError("A project with purchase orders cannot go back to Draft");
+    }
     const data: { status: ProjectStatus; approved?: boolean; approvalDate?: Date | null; actualEndDate?: Date } = { status: to };
-    if (to === ProjectStatus.APPROVED) {
+    if (transitionApproves(before, to)) {
       data.approved = true;
-      data.approvalDate = parseDate(opts.approvalDate) ?? today();
-    } else if (to === ProjectStatus.CANCELLED || to === ProjectStatus.REJECTED) {
+      data.approvalDate = parseDate(opts.approvalDate) ?? before.approvalDate ?? today();
+    } else if (to === ProjectStatus.DRAFT || to === ProjectStatus.CANCELLED) {
       data.approved = false;
-    } else if (APPROVED_FAMILY.includes(to)) {
-      data.approved = true;
     }
     if (to === ProjectStatus.COMPLETED && !before.actualEndDate) data.actualEndDate = today();
     const p = await tx.project.update({ where: { id }, data });
@@ -134,7 +144,7 @@ export async function businessValue(db: Db, opts: { from?: Date; to?: Date } = {
     by: ["currency"],
     where: {
       approved: true,
-      status: { notIn: [ProjectStatus.CANCELLED, ProjectStatus.REJECTED] },
+      status: { not: ProjectStatus.CANCELLED },
       approvalDate: { gte: opts.from, lte: opts.to },
     },
     _sum: { value: true },
@@ -147,7 +157,7 @@ export async function businessValueByMonth(db: Db, year: number) {
   return db.$queryRaw<{ month: number; currency: string; value: string }[]>`
     SELECT EXTRACT(MONTH FROM "approvalDate")::int AS month, "currency", SUM("value")::text AS value
       FROM "Project"
-     WHERE "approved" = true AND "status" NOT IN ('CANCELLED','REJECTED')
+     WHERE "approved" = true AND "status" <> 'CANCELLED'
        AND EXTRACT(YEAR FROM "approvalDate") = ${year}
      GROUP BY 1, 2 ORDER BY 1, 2`;
 }

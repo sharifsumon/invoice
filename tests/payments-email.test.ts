@@ -27,8 +27,7 @@ afterAll(async () => db.$disconnect());
 async function issuedInvoice(amount = "1000", dueDate = "2026-01-31") {
   const c = await createClient(db, admin, cl(uid("Client")), [ct("Dana", "Primary", { email: "dana@client.example", isPrimary: true })]);
   const p = await createProject(db, admin, { code: uid("P"), name: "Proj X", clientId: c.id, value: amount, currency: "USD" });
-  await transitionProject(db, admin, p.id, ProjectStatus.SUBMITTED);
-  await transitionProject(db, admin, p.id, ProjectStatus.APPROVED);
+  await transitionProject(db, admin, p.id, ProjectStatus.IN_PROGRESS);
   const o = await createPO(db, finance, { poNumber: uid("PO"), projectId: p.id, poDate: "2026-01-01", value: amount });
   await approvePO(db, finance, o.id);
   const inv = await createManualInvoice(db, finance, { poId: o.id, lines: [{ description: "Work", unitPrice: amount }] });

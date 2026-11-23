@@ -134,15 +134,11 @@ model ClientActivity {
 // ───────────── Projects ─────────────
 
 enum ProjectStatus {
-  PROPOSED
   DRAFT
-  SUBMITTED
-  APPROVED
   IN_PROGRESS
   ON_HOLD
   COMPLETED
   CANCELLED
-  REJECTED
 }
 
 model Project {

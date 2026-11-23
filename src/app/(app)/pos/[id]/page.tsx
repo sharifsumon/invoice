@@ -38,11 +38,11 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
   const attachments = await prisma.attachment.findMany({
     where: { entityType: "PurchaseOrder", entityId: id }, orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { name: true } } },
   });
-  const [bal, { template }, history, projects] = await Promise.all([
+  const [bal, { template, company }, history, projects] = await Promise.all([
     poBalance(prisma, id),
     getSettings(prisma),
     prisma.auditLog.findMany({ where: { entityType: "PurchaseOrder", entityId: id }, orderBy: { createdAt: "desc" }, take: 20, include: { actor: { select: { name: true } } } }),
-    prisma.project.findMany({ where: { status: { notIn: ["CANCELLED", "REJECTED"] } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true, currency: true, client: { select: { name: true } } } }),
+    prisma.project.findMany({ where: { status: { not: "CANCELLED" } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true, currency: true, client: { select: { name: true } } } }),
   ]);
 
   const editable = can(user.role, "pos", "edit") && (["DRAFT", "SUBMITTED", "REJECTED"] as POStatus[]).includes(po.status);
@@ -66,7 +66,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
       {transitions.length > 0 && (
         <Card className="mb-6" title="Workflow">
           {po.milestones.length > 0 && !planOk && transitions.includes("APPROVED") && (
-            <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <p className="mb-3 rounded-lg bg-lime-soft px-3 py-2 text-sm text-lime-ink">
               Milestones total {pctTotal.toString()}%. They must total exactly 100% before this PO can be approved.
             </p>
           )}
@@ -113,7 +113,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
               })}
             </Table>
             {po.milestones.length > 0 && (
-              <div className={`mt-3 text-xs ${planOk ? "text-emerald-600" : "text-amber-600"}`}>Total {pctTotal.toString()}%</div>
+              <div className={`mt-3 text-xs ${planOk ? "text-brand-600" : "text-lime-ink"}`}>Total {pctTotal.toString()}%</div>
             )}
           </Card>
 
@@ -160,7 +160,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
 
           {editable && (
             <Card title="Edit PO">
-              <POForm action={updatePOAction.bind(null, po.id)} po={po} projects={projects} />
+              <POForm action={updatePOAction.bind(null, po.id)} po={po} projects={projects} defaultCurrency={company.defaultCurrency} />
             </Card>
           )}
         </div>

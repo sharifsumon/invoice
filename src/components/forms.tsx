@@ -19,7 +19,7 @@ export function SubmitButton({ children, variant = "primary", size = "md", pendi
 export function FormMessage({ state }: { state: ActionState }) {
   if (!state) return null;
   if (state.error) return <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{state.error}</div>;
-  if (state.ok) return <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{state.message}</div>;
+  if (state.ok) return <div role="status" className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-medium text-brand-700">{state.message}</div>;
   return null;
 }
 
@@ -75,7 +75,7 @@ export function ActionButton({ action, label, variant = "secondary", size = "sm"
         </form>
       )}
       {state?.error && <span role="alert" className="max-w-md text-xs text-rose-600">{state.error}</span>}
-      {state?.ok && state.message && state.message !== "Saved" && <span className="max-w-md text-xs text-emerald-700">{state.message}</span>}
+      {state?.ok && state.message && state.message !== "Saved" && <span className="max-w-md text-xs text-brand-700">{state.message}</span>}
     </div>
   );
 }

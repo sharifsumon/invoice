@@ -62,8 +62,8 @@ export async function createPO(db: Db, actor: Actor, raw: POInput) {
   return inTx(db, async (tx) => {
     const project = await tx.project.findUnique({ where: { id: data.projectId } });
     if (!project) throw new RuleError("Project not found");
-    if (project.status === ProjectStatus.CANCELLED || project.status === ProjectStatus.REJECTED) {
-      throw new RuleError("Cannot create a PO for a cancelled or rejected project");
+    if (project.status === ProjectStatus.CANCELLED) {
+      throw new RuleError("Cannot create a PO for a cancelled project");
     }
     const po = await tx.purchaseOrder.create({
       data: {
@@ -72,7 +72,7 @@ export async function createPO(db: Db, actor: Actor, raw: POInput) {
         projectId: project.id,
         poDate: parseDate(data.poDate)!,
         value,
-        currency: data.currency ?? project.currency,
+        currency: project.currency, // one currency: the project's (= company currency when it was created)
         paymentTerms: data.paymentTerms || null,
         reference: data.reference || null,
         remarks: data.remarks || null,
@@ -105,7 +105,7 @@ export async function updatePO(db: Db, actor: Actor, id: string, raw: POInput) {
         projectId: project.id,
         poDate: parseDate(data.poDate)!,
         value,
-        currency: data.currency ?? project.currency,
+        currency: project.currency, // one currency: the project's (= company currency when it was created)
         paymentTerms: data.paymentTerms || null,
         reference: data.reference || null,
         remarks: data.remarks || null,

@@ -56,12 +56,10 @@ async function main() {
 
   const year = new Date().getFullYear();
   const p1 = await createProject(db, actor, { code: "ACME-ECOM", name: "E-commerce platform", clientId: acme.id, value: "48000", currency: "USD", startDate: `${year}-01-15` });
-  await transitionProject(db, actor, p1.id, ProjectStatus.SUBMITTED);
-  await transitionProject(db, actor, p1.id, ProjectStatus.APPROVED, { approvalDate: `${year}-02-01` });
+  await transitionProject(db, actor, p1.id, ProjectStatus.IN_PROGRESS, { approvalDate: `${year}-02-01` });
   const p2 = await createProject(db, actor, { code: "NOVA-APP", name: "Patient mobile app", clientId: nova.id, value: "30000", currency: "EUR" });
-  await transitionProject(db, actor, p2.id, ProjectStatus.SUBMITTED);
-  await transitionProject(db, actor, p2.id, ProjectStatus.APPROVED, { approvalDate: `${year}-04-10` });
-  await createProject(db, actor, { code: "ACME-BI", name: "BI dashboards (proposal)", clientId: acme.id, value: "15000", currency: "USD" }, "PROPOSED");
+  await transitionProject(db, actor, p2.id, ProjectStatus.IN_PROGRESS, { approvalDate: `${year}-04-10` });
+  await createProject(db, actor, { code: "ACME-BI", name: "BI dashboards (proposal)", clientId: acme.id, value: "15000", currency: "USD" });
 
   const po1 = await createPO(db, actor, {
     poNumber: "ACME-PO-1001", projectId: p1.id, poDate: `${year}-02-05`, value: "40000", paymentTerms: "Net 30",

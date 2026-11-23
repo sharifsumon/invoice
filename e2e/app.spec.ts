@@ -56,18 +56,22 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page.getByRole("heading", { name: /Orbit Labs/ })).toBeVisible();
 
-  // Project → submit → approve
+  // Project starts as Draft → status dropdown → In Progress; then edit it
   await page.getByRole("link", { name: "New project" }).click();
   await page.getByLabel("Project code *").fill("ORB-1");
   await page.getByLabel("Project name *").fill("Data platform");
   await page.getByLabel("Project value *").fill("20000");
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page.getByRole("heading", { name: /Data platform/ })).toBeVisible();
-  await page.getByRole("button", { name: "Mark Submitted" }).click();
-  await expect(page.getByText("Project moved to submitted")).toBeVisible();
-  await page.getByRole("button", { name: "Approve", exact: true }).click();
-  await page.getByRole("button", { name: "Confirm approve" }).click();
-  await expect(page.getByText("Project moved to approved")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Status" })).toHaveValue("DRAFT");
+  await page.getByRole("combobox", { name: "Status" }).selectOption("IN_PROGRESS");
+  await page.getByRole("button", { name: "Update status" }).click();
+  await expect(page.getByText("Project moved to in progress")).toBeVisible();
+  await page.getByRole("link", { name: "Edit project" }).click();
+  await page.getByLabel("Project name *").fill("Data platform v2");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("heading", { name: /Data platform v2/ })).toBeVisible();
+  await expect(page.getByText("Project updated")).toBeVisible();
 
   // PO with a 50/50 milestone plan
   await page.getByRole("link", { name: "New PO" }).click();

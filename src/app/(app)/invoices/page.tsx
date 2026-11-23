@@ -49,7 +49,6 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
             <option value="">All clients</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
-          <Input name="currency" defaultValue={f.currency} placeholder="Currency" maxLength={3} className="max-w-[100px] uppercase" />
           <Input name="from" type="date" defaultValue={f.from} className="max-w-[160px]" aria-label="Invoice date from" />
           <Input name="to" type="date" defaultValue={f.to} className="max-w-[160px]" aria-label="Invoice date to" />
           <button className={buttonClass("secondary")}>Filter</button>

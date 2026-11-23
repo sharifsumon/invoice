@@ -41,7 +41,7 @@ export default async function SettingsPage() {
                 <Field label="Website"><Input name="website" defaultValue={c.website ?? ""} /></Field>
                 <Field label="Registration number"><Input name="registrationNumber" defaultValue={c.registrationNumber ?? ""} /></Field>
                 <Field label="Tax / VAT registration number"><Input name="taxNumber" defaultValue={c.taxNumber ?? ""} /></Field>
-                <Field label="Default currency"><Input name="defaultCurrency" maxLength={3} className="uppercase" defaultValue={c.defaultCurrency} /></Field>
+                <Field label="Company currency" hint="Used for all new projects, POs, invoices, the dashboard and reports. Existing records keep their currency."><Input name="defaultCurrency" maxLength={3} className="uppercase" defaultValue={c.defaultCurrency} /></Field>
                 <Field label="Default payment terms (days)"><Input name="paymentTermsDays" type="number" min={0} max={365} defaultValue={c.paymentTermsDays} /></Field>
                 <Field label="Address" className="sm:col-span-2"><Textarea name="address" defaultValue={c.address ?? ""} /></Field>
                 <Field label="Bank account / payment instructions" className="sm:col-span-2"><Textarea name="bankDetails" rows={4} defaultValue={c.bankDetails ?? ""} /></Field>
@@ -82,7 +82,7 @@ export default async function SettingsPage() {
           </Card>
 
           <Card title="Invoice email template">
-            <div className={`mb-4 rounded-lg px-3 py-2 text-xs ${smtp ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+            <div className={`mb-4 rounded-lg px-3 py-2 text-xs ${smtp ? "bg-brand-50 text-brand-800" : "bg-lime-soft text-lime-ink"}`}>
               {smtp
                 ? <>Sending via SMTP server <b>{smtp}</b> as <b>{process.env.EMAIL_FROM || "invoices@localhost"}</b>.</>
                 : <>SMTP is not configured: emails are written to <code>storage/outbox</code> and not delivered. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and EMAIL_FROM in <code>.env</code> to send for real.</>}

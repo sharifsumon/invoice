@@ -13,6 +13,7 @@ import { sendInvoiceEmail } from "@/server/core/email";
 import { globalSearch } from "@/server/core/search";
 import { addDays, today, type Actor } from "@/server/core/common";
 import { dec } from "@/server/core/money";
+import { getSettings } from "@/server/core/settings";
 import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
 const db = testDb();
@@ -33,10 +34,10 @@ beforeAll(async () => {
 afterAll(async () => db.$disconnect());
 
 async function project(value: string, approve: boolean, approvalDate = "2026-03-10", currency = CUR) {
-  const p = await createProject(db, admin, { code: uid("R"), name: "Rep", clientId, value, currency });
+  // The app now creates projects in the company currency; other currencies only exist as older data.
+  const p = await db.project.update({ where: { id: (await createProject(db, admin, { code: uid("R"), name: "Rep", clientId, value })).id }, data: { currency } });
   if (approve) {
-    await transitionProject(db, admin, p.id, ProjectStatus.SUBMITTED);
-    await transitionProject(db, admin, p.id, ProjectStatus.APPROVED, { approvalDate });
+    await transitionProject(db, admin, p.id, ProjectStatus.IN_PROGRESS, { approvalDate });
   }
   return p;
 }
@@ -55,12 +56,12 @@ describe("Reports", () => {
   it("project register: business value counts approved projects only", async () => {
     const a = await project("1000", true);
     await project("5000", false);
-    const r = await runReport(db, getReport("projects")!, { clientId, currency: CUR });
+    const r = await runReport(db, getReport("projects")!, { clientId, currency: CUR, rc: CUR });
     expect(r.rows.length).toBe(2);
     expect(totalOf(r, "bv", CUR)).toBe("1000");
     expect(totalOf(r, "value", CUR)).toBe("6000");
     await project("700", true, "2025-12-31");
-    const ranged = await runReport(db, getReport("projects")!, { clientId, currency: CUR, from: new Date("2026-01-01"), to: new Date("2026-12-31") });
+    const ranged = await runReport(db, getReport("projects")!, { clientId, currency: CUR, rc: CUR, from: new Date("2026-01-01"), to: new Date("2026-12-31") });
     expect(totalOf(ranged, "bv", CUR)).toBe("1000"); // 2025 approval excluded by approval-date filter
     expect(a).toBeTruthy();
   });
@@ -73,23 +74,23 @@ describe("Reports", () => {
     await issued(p.id, "2000", iso(t), iso(addDays(t, 20)));                                        // not due
     await recordPayment(db, finance, overdueInv.id, { amount: "400", paymentDate: iso(addDays(t, -1)), method: PaymentMethod.CASH });
 
-    const pos = await runReport(db, getReport("pos")!, { clientId, currency: CUR });
+    const pos = await runReport(db, getReport("pos")!, { clientId, currency: CUR, rc: CUR });
     expect(totalOf(pos, "invoiced", CUR)).toBe("3000");
     expect(totalOf(pos, "paid", CUR)).toBe("400");
 
-    const aging = await runReport(db, getReport("aging")!, { clientId, currency: CUR });
+    const aging = await runReport(db, getReport("aging")!, { clientId, currency: CUR, rc: CUR });
     expect(totalOf(aging, "d60", CUR)).toBe("600");
     expect(totalOf(aging, "notDue", CUR)).toBe("2000");
 
-    const fc = await runReport(db, getReport("forecast")!, { clientId, currency: CUR });
+    const fc = await runReport(db, getReport("forecast")!, { clientId, currency: CUR, rc: CUR });
     expect(fc.rows[0].month).toBe("Overdue (past due)");
     expect((fc.rows[0].amount as MoneyCell).amount.toString()).toBe("600");
     expect(totalOf(fc, "amount", CUR)).toBe("2600");
 
-    const col = await runReport(db, getReport("collections")!, { clientId, currency: CUR });
+    const col = await runReport(db, getReport("collections")!, { clientId, currency: CUR, rc: CUR });
     expect(totalOf(col, "amount", CUR)).toBe("400");
 
-    const perf = await runReport(db, getReport("client-performance")!, { clientId, currency: CUR });
+    const perf = await runReport(db, getReport("client-performance")!, { clientId, currency: CUR, rc: CUR });
     expect(totalOf(perf, "outstanding", CUR)).toBe("2600");
     expect(totalOf(perf, "collected", CUR)).toBe("400");
   });
@@ -97,7 +98,9 @@ describe("Reports", () => {
   it("never mixes currencies without a reporting currency; converts with recorded rates when asked", async () => {
     await project("100", true, "2026-05-01", "CHF");
     const r = await runReport(db, getReport("projects")!, { clientId });
-    expect(r.totals.bv.map((t) => t.currency)).toEqual(expect.arrayContaining(["CHF", CUR]));
+    const { company } = await getSettings(db);
+    expect(r.reportingCurrency).toBe(company.defaultCurrency); // always reported in the company currency
+    expect(r.totals.bv.every((t) => t.currency === company.defaultCurrency)).toBe(true); // never mixed
 
     await addRate(db, admin, { fromCurrency: "CHF", toCurrency: "SGD", rate: "1.5", effectiveDate: "2026-01-01" });
     await addRate(db, admin, { fromCurrency: "CHF", toCurrency: "SGD", rate: "2", effectiveDate: "2026-06-01" }); // later rate must not apply to May

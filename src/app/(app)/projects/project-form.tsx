@@ -29,16 +29,18 @@ export function ProjectForm({ action, project, clients, managers, defaultClientI
             {managers.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
         </Field>
-        <Field label="Project value *" hint="Counts toward Business Value only once approved.">
+        <Field label="Project value *" hint="Counts toward Business Value once the project is In Progress.">
           <Input name="value" required inputMode="decimal" defaultValue={project?.value.toString()} placeholder="0.00" />
         </Field>
-        <Field label="Currency *"><Input name="currency" required maxLength={3} defaultValue={project?.currency ?? defaultCurrency} className="uppercase" /></Field>
+        <Field label="Currency" hint={project ? "Fixed when the project was created." : "Company currency — change it in Settings."}>
+          <Input value={project?.currency ?? defaultCurrency} disabled readOnly />
+        </Field>
         <Field label="Start date"><Input name="startDate" type="date" defaultValue={isoDate(project?.startDate)} /></Field>
         <Field label="Planned end date"><Input name="plannedEndDate" type="date" defaultValue={isoDate(project?.plannedEndDate)} /></Field>
         {!isNew && <Field label="Actual end date"><Input name="actualEndDate" type="date" defaultValue={isoDate(project?.actualEndDate)} /></Field>}
         {isNew && (
-          <Field label="Initial status">
-            <Select name="initial" defaultValue="DRAFT"><option value="DRAFT">Draft</option><option value="PROPOSED">Proposed</option></Select>
+          <Field label="Status" hint="New projects start as Draft. Change the status from the project page.">
+            <Input value="Draft" disabled readOnly />
           </Field>
         )}
         <Field label="Description" className="sm:col-span-2"><Textarea name="description" defaultValue={project?.description ?? ""} /></Field>

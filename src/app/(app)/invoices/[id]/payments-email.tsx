@@ -57,7 +57,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse }: { inv: In
           </ActionForm>
         </details>
       )}
-      {inv.status === "PAID" && <p className="mt-4 text-sm text-emerald-700">This invoice is fully paid.</p>}
+      {inv.status === "PAID" && <p className="mt-4 text-sm text-brand-700">This invoice is fully paid.</p>}
     </Card>
   );
 }
@@ -74,7 +74,7 @@ export async function EmailCard({ inv, logs, canSend }: { inv: Invoice; logs: L[
         <details open>
           <summary className="cursor-pointer text-sm font-medium text-brand-700">{logs.length ? "Resend invoice" : "Compose email"}</summary>
           {!smtp && (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="mt-3 rounded-lg bg-lime-soft px-3 py-2 text-xs text-lime-ink">
               SMTP is not configured, so messages are written to the server&apos;s dev outbox (<code>storage/outbox</code>) and not delivered. Set SMTP_HOST in .env to send for real.
             </p>
           )}

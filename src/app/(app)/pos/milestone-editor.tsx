@@ -30,7 +30,7 @@ export function MilestoneEditor({ initial, defaultValue, currency }: { initial: 
       <div className="rounded-lg border border-slate-200">
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
           <span className="text-xs font-medium text-slate-600">Payment milestones</span>
-          <span className={`text-xs font-medium ${ok ? "text-emerald-600" : "text-amber-600"}`}>
+          <span className={`text-xs font-medium ${ok ? "text-brand-600" : "text-lime-ink"}`}>
             Total {totalRounded}% {rows.length > 0 && !ok && "— must equal 100% before approval"}
           </span>
         </div>

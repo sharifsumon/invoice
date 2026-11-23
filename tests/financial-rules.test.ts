@@ -6,7 +6,7 @@ import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject, updateProject, businessValue } from "@/server/core/projects";
 import { approvePO, createPO, generateMilestoneInvoices, poBalance, transitionPO } from "@/server/core/pos";
 import { cancelAndReissue, cancelInvoice, createManualInvoice, finalizeInvoice, isOverdue, updateDraftInvoice } from "@/server/core/invoices";
-import { updateCompany } from "@/server/core/settings";
+import { getSettings, updateCompany } from "@/server/core/settings";
 import { storageRoot } from "@/server/core/storage";
 import { dec } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
@@ -29,9 +29,9 @@ afterAll(async () => db.$disconnect());
 
 async function approvedProject(value = "10000", currency = "USD") {
   const c = await createClient(db, bd, cl(uid("Client")), [ct("Jane", "Doe")]);
-  const p = await createProject(db, bd, { code: uid("P"), name: "Proj", clientId: c.id, value, currency });
-  await transitionProject(db, bd, p.id, ProjectStatus.SUBMITTED);
-  await transitionProject(db, admin, p.id, ProjectStatus.APPROVED, { approvalDate: "2026-03-15" });
+  // Projects are created in the company currency; set another one directly to simulate older multi-currency data.
+  const p = await db.project.update({ where: { id: (await createProject(db, bd, { code: uid("P"), name: "Proj", clientId: c.id, value })).id }, data: { currency } });
+  await transitionProject(db, admin, p.id, ProjectStatus.IN_PROGRESS, { approvalDate: "2026-03-15" });
   return p;
 }
 
@@ -51,7 +51,8 @@ describe("Business value (BR-01..03, BR-12)", () => {
     await po(p.id, "3000");
     await po(p.id, "4000");
     const c = await createClient(db, bd, cl(uid("C")), [ct()]);
-    await createProject(db, bd, { code: uid("D"), name: "Draft only", clientId: c.id, value: "99999", currency: "EUR" });
+    const d = await createProject(db, bd, { code: uid("D"), name: "Draft only", clientId: c.id, value: "99999" });
+    await db.project.update({ where: { id: d.id }, data: { currency: "EUR" } });
 
     const after = await businessValue(db);
     expect(get(after, "EUR").minus(get(before, "EUR")).toString()).toBe("5000");
@@ -77,11 +78,39 @@ describe("Business value (BR-01..03, BR-12)", () => {
     expect(log?.after).toMatchObject({ value: "1500" });
   });
 
-  it("only approvers can approve projects", async () => {
+  it("new projects always use the company currency from Settings, and edits never change it", async () => {
+    const { company } = await getSettings(db);
+    const c = await createClient(db, bd, cl(uid("C")), [ct()]);
+    const p = await createProject(db, bd, { code: uid("P"), name: "cur", clientId: c.id, value: "10", currency: "JPY" });
+    expect(p.currency).toBe(company.defaultCurrency);
+    const u = await updateProject(db, bd, p.id, { code: p.code, name: p.name, clientId: c.id, value: "10", currency: "JPY" });
+    expect(u.currency).toBe(company.defaultCurrency);
+    const o = await po(p.id, "5");
+    expect(o.currency).toBe(company.defaultCurrency);
+  });
+
+  it("only approvers can start a draft project, and starting it approves it", async () => {
     const c = await createClient(db, bd, cl(uid("C")), [ct()]);
     const p = await createProject(db, bd, { code: uid("P"), name: "x", clientId: c.id, value: "1", currency: "USD" });
-    await transitionProject(db, bd, p.id, ProjectStatus.SUBMITTED);
-    await expect(transitionProject(db, bd, p.id, ProjectStatus.APPROVED)).rejects.toThrow(/permission/);
+    expect(p.status).toBe(ProjectStatus.DRAFT);
+    await expect(transitionProject(db, bd, p.id, ProjectStatus.IN_PROGRESS)).rejects.toThrow(/permission/);
+    await transitionProject(db, bd, p.id, ProjectStatus.ON_HOLD); // not a start: edit permission is enough
+    const started = await transitionProject(db, admin, p.id, ProjectStatus.IN_PROGRESS, { approvalDate: "2026-05-01" });
+    expect(started.approved).toBe(true);
+    expect(started.approvalDate?.toISOString().slice(0, 10)).toBe("2026-05-01");
+    await transitionProject(db, bd, p.id, ProjectStatus.ON_HOLD); // on hold keeps the approval
+    expect((await db.project.findUniqueOrThrow({ where: { id: p.id } })).approved).toBe(true);
+  });
+
+  it("a project with POs cannot go back to Draft; cancelled projects reopen as Draft", async () => {
+    const p = await approvedProject("50");
+    await po(p.id, "10");
+    await expect(transitionProject(db, admin, p.id, ProjectStatus.DRAFT)).rejects.toThrow(/back to Draft/);
+    const c = await createClient(db, bd, cl(uid("C")), [ct()]);
+    const q = await createProject(db, bd, { code: uid("P"), name: "y", clientId: c.id, value: "1", currency: "USD" });
+    await transitionProject(db, bd, q.id, ProjectStatus.CANCELLED);
+    await expect(transitionProject(db, bd, q.id, ProjectStatus.COMPLETED)).rejects.toThrow(/Cannot move/);
+    expect((await transitionProject(db, bd, q.id, ProjectStatus.DRAFT)).status).toBe(ProjectStatus.DRAFT);
   });
 });
 

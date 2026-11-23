@@ -15,15 +15,12 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
   if (!def) notFound();
   const sp = await searchParams;
   const f = parseReportFilters(sp);
-  const [result, clients, rateCurrencies, usedCurrencies] = await Promise.all([
+  const [result, clients] = await Promise.all([
     runReport(prisma, def, f),
     def.filters.includes("client") ? prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
-    prisma.exchangeRate.findMany({ distinct: ["toCurrency"], select: { toCurrency: true } }),
-    prisma.project.findMany({ distinct: ["currency"], select: { currency: true } }),
   ]);
   const qs = filtersQuery(sp);
   const canExport = can(user.role, "reports", "export");
-  const rcOptions = [...new Set([...rateCurrencies.map((r) => r.toCurrency), ...(f.rc ? [f.rc] : [])])].sort();
   const raw = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
 
   return (
@@ -54,14 +51,6 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
               </Select>
             </Field>
           )}
-          {def.filters.includes("currency") && (
-            <Field label="Currency">
-              <Select name="currency" defaultValue={raw("currency")} className="w-28">
-                <option value="">All</option>
-                {usedCurrencies.map((c) => <option key={c.currency} value={c.currency}>{c.currency}</option>)}
-              </Select>
-            </Field>
-          )}
           {def.filters.includes("status") && def.statuses && (
             <Field label="Status">
               <Select name="status" defaultValue={raw("status")} className="min-w-[150px]">
@@ -70,12 +59,6 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
               </Select>
             </Field>
           )}
-          <Field label="Reporting currency" hint={rcOptions.length ? undefined : "Add exchange rates in Settings to enable"}>
-            <Select name="rc" defaultValue={f.rc ?? ""} className="w-40" disabled={!rcOptions.length}>
-              <option value="">None (per currency)</option>
-              {rcOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
-          </Field>
           <button className={buttonClass("primary")}>Apply</button>
           {qs && <Link href={`/reports/${def.id}`} className={buttonClass("ghost")}>Reset</Link>}
         </form>
@@ -83,7 +66,7 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
 
       <Card title={`${result.rows.length} row${result.rows.length === 1 ? "" : "s"}`}>
         <ul className="mb-4 space-y-1 text-xs text-slate-500">
-          {result.notes.map((n) => <li key={n} className={n.includes("no recorded rate") ? "text-amber-700" : ""}>• {n}</li>)}
+          {result.notes.map((n) => <li key={n} className={n.includes("no recorded rate") ? "text-lime-ink" : ""}>• {n}</li>)}
         </ul>
         <Table head={result.columns.map((c) => c.label)} empty="No rows match these filters.">
           {result.rows.slice(0, 1000).map((row, i) => (
@@ -116,7 +99,7 @@ function render(col: Column, v: Cell, rc: string | null) {
     if (!rc || v.currency === rc) return formatMoney(v.amount, v.currency);
     return v.converted != null
       ? <span title={`Original ${formatMoney(v.amount, v.currency)}`}>{formatMoney(v.converted, rc)}<div className="text-[11px] text-slate-400">{formatMoney(v.amount, v.currency)}</div></span>
-      : <span className="text-amber-700" title="No recorded exchange rate">{formatMoney(v.amount, v.currency)}<div className="text-[11px]">no rate</div></span>;
+      : <span className="text-lime-ink" title="No recorded exchange rate">{formatMoney(v.amount, v.currency)}<div className="text-[11px]">no rate</div></span>;
   }
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (col.kind === "text" && col.key !== "currency" && typeof v === "string" && /^[A-Z_]{4,}$/.test(v)) return labelize(v);

@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { today, type Db } from "./common";
 import { loadRateBook, type RateBook } from "./fx";
 import { dec, sum } from "./money";
+import { getSettings } from "./settings";
 
 // ───────────── Generic report model ─────────────
 
@@ -96,7 +97,7 @@ export const REPORTS: ReportDef[] = [
           { key: "bv", label: "Business value", kind: "money" },
         ],
         rows: ps.map((p) => {
-          const counts = p.approved && p.status !== "CANCELLED" && p.status !== "REJECTED";
+          const counts = p.approved && p.status !== "CANCELLED";
           return {
             code: { text: p.code, href: `/projects/${p.id}` }, name: p.name, client: p.client.name, manager: p.manager?.name ?? null,
             status: p.status, approvalDate: p.approvalDate, value: m(p.value, p.currency, p.approvalDate ?? p.createdAt),
@@ -255,7 +256,7 @@ export const REPORTS: ReportDef[] = [
       const from = new Date(Date.UTC(year, 0, 1)); const to = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
       const cur = f.currency;
       const [projects, pos, invs, pays] = await Promise.all([
-        db.project.findMany({ where: { approved: true, status: { notIn: ["CANCELLED", "REJECTED"] }, approvalDate: { gte: from, lte: to }, currency: cur }, select: { value: true, currency: true, approvalDate: true } }),
+        db.project.findMany({ where: { approved: true, status: { not: "CANCELLED" }, approvalDate: { gte: from, lte: to }, currency: cur }, select: { value: true, currency: true, approvalDate: true } }),
         db.purchaseOrder.findMany({ where: { status: { in: APPROVED_PO }, approvedAt: { gte: from, lte: to }, currency: cur }, select: { value: true, currency: true, approvedAt: true } }),
         db.invoice.findMany({ where: { status: { in: ISSUED }, invoiceDate: { gte: from, lte: to }, currency: cur }, select: { total: true, currency: true, invoiceDate: true } }),
         db.payment.findMany({ where: { state: "VALID", paymentDate: { gte: from, lte: to }, currency: cur }, select: { amount: true, currency: true, paymentDate: true } }),
@@ -306,7 +307,7 @@ export const REPORTS: ReportDef[] = [
       for (const p of projects) {
         const key = by === "client" ? p.clientId : p.id;
         const label = by === "client" ? { text: p.client.name, href: `/clients/${p.clientId}` } : { text: `${p.code} — ${p.name}`, href: `/projects/${p.id}` };
-        bump(key, label, p.client.name, "bv", p.approved && p.status !== "CANCELLED" && p.status !== "REJECTED" ? p.value : dec(0), p.currency);
+        bump(key, label, p.client.name, "bv", p.approved && p.status !== "CANCELLED" ? p.value : dec(0), p.currency);
         for (const o of p.purchaseOrders) bump(key, label, p.client.name, "po", o.value, o.currency);
         for (const i of p.invoices) {
           bump(key, label, p.client.name, "invoiced", i.total, i.currency);
@@ -336,9 +337,11 @@ export function getReport(id: string) {
  */
 export async function runReport(db: Db, def: ReportDef, f: Filters, book?: RateBook): Promise<ReportResult> {
   const { columns, rows, notes = [] } = await def.run(db, f);
-  const rc = f.rc?.toUpperCase() || null;
+  // One-currency app: everything is reported in the company currency from Settings.
+  const rc = f.rc?.toUpperCase() || (await getSettings(db)).company.defaultCurrency;
   const rates = rc ? book ?? (await loadRateBook(db, rc)) : null;
   let unconverted = 0;
+  let foreign = 0;
   const totals: ReportResult["totals"] = {};
   for (const col of columns.filter((c) => c.kind === "money")) {
     const acc = new Map<string, Prisma.Decimal>();
@@ -346,6 +349,7 @@ export async function runReport(db: Db, def: ReportDef, f: Filters, book?: RateB
       const c = r[col.key];
       if (!isMoney(c)) continue;
       if (rc && rates) {
+        if (c.currency !== rc) foreign++;
         const conv = rates.convert(c.amount, c.currency, rc, c.on ?? today());
         c.converted = conv?.value ?? null;
         if (!conv) { if (!c.amount.isZero()) unconverted++; continue; }
@@ -357,11 +361,11 @@ export async function runReport(db: Db, def: ReportDef, f: Filters, book?: RateB
     totals[col.key] = [...acc.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([currency, amount]) => ({ currency, amount }));
   }
   const allNotes = [...notes];
-  if (rc) {
-    allNotes.push(`Converted to ${rc} using recorded exchange rates effective on or before each row's date (reporting only — no settlement).`);
+  if (rc && foreign) {
+    allNotes.push(`Older amounts in other currencies converted to ${rc} using recorded exchange rates effective on or before each row's date (reporting only — no settlement).`);
     if (unconverted) allNotes.push(`${unconverted} amount(s) had no recorded rate to ${rc} and are excluded from converted totals. Add rates under Settings → Exchange rates.`);
-  } else {
-    allNotes.push("Totals are per currency; different currencies are never added together.");
+  } else if (rc) {
+    allNotes.push(`All amounts in ${rc}.`);
   }
   return { columns, rows, notes: allNotes, totals, reportingCurrency: rc, unconverted };
 }

@@ -124,8 +124,7 @@ describe("Audit coverage (BRD §5.10)", () => {
     await updateClient(db, admin, c.id, cl(c.name, { status: "ONBOARDED" }));
     await upsertContact(db, admin, c.id, ct("Ann", "Lee"));
     const p = await createProject(db, admin, { code: uid("AU"), name: "x", clientId: c.id, value: "100", currency: "USD" });
-    await transitionProject(db, admin, p.id, ProjectStatus.SUBMITTED);
-    await transitionProject(db, admin, p.id, ProjectStatus.APPROVED);
+    await transitionProject(db, admin, p.id, ProjectStatus.IN_PROGRESS);
     const po = await createPO(db, finance, { poNumber: uid("AUPO"), projectId: p.id, poDate: "2026-01-01", value: "100" });
     await approvePO(db, finance, po.id);
     const inv = await createManualInvoice(db, finance, { poId: po.id, lines: [{ description: "x", unitPrice: "60" }] });
@@ -142,7 +141,7 @@ describe("Audit coverage (BRD §5.10)", () => {
 
     const expected: [string, string][] = [
       ["client.created", c.id], ["client.updated", c.id], ["contact.created", c.id],
-      ["project.created", p.id], ["project.status.submitted", p.id], ["project.status.approved", p.id],
+      ["project.created", p.id], ["project.status.in_progress", p.id],
       ["po.created", po.id], ["po.status.approved", po.id],
       ["invoice.created", inv.id], ["invoice.finalized", inv.id], ["payment.recorded", inv.id], ["payment.reversed", inv.id],
       ["invoice.cancelled", inv2.id], ["settings.company.updated", "1"], ["settings.template.updated", "1"],
@@ -152,9 +151,9 @@ describe("Audit coverage (BRD §5.10)", () => {
       expect(row, `missing audit: ${action}`).toBeTruthy();
       expect(row!.actorId, `no actor on ${action}`).toBeTruthy();
     }
-    const approved = await db.auditLog.findFirst({ where: { action: "project.status.approved", entityId: p.id } });
-    expect(approved?.before).toMatchObject({ status: "SUBMITTED" });
-    expect(approved?.after).toMatchObject({ status: "APPROVED" });
+    const started = await db.auditLog.findFirst({ where: { action: "project.status.in_progress", entityId: p.id } });
+    expect(started?.before).toMatchObject({ status: "DRAFT", approved: false });
+    expect(started?.after).toMatchObject({ status: "IN_PROGRESS", approved: true });
   });
 
   it("permission matrix: viewers can never mutate; only admins administer", () => {

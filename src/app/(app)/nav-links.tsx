@@ -18,33 +18,29 @@ function isActive(path: string, href: string) {
   return href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
 }
 
-/** Dark sidebar navigation, grouped by section. */
+/** Sidebar navigation: a flat list, sections separated by a little space. */
 export function NavLinks({ links }: { links: NavItem[] }) {
   const path = usePathname();
   const sections = [...new Set(links.map((l) => l.section ?? ""))];
   return (
-    <nav className="flex flex-col gap-6 px-3" aria-label="Main">
+    <nav className="flex flex-col gap-4 px-4" aria-label="Main">
       {sections.map((s) => (
-        <div key={s}>
-          {s && <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-brand-700/60">{s}</div>}
-          <ul className="space-y-0.5">
-            {links.filter((l) => (l.section ?? "") === s).map((l) => {
-              const Icon = NAV_ICONS[l.icon];
-              const active = isActive(path, l.href);
-              return (
-                <li key={l.href}>
-                  <Link href={l.href} aria-current={active ? "page" : undefined}
-                    className={cx("group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
-                      active ? "bg-white text-brand-700 shadow-sm shadow-brand-900/5 ring-1 ring-brand-200" : "text-slate-600 hover:bg-white/70 hover:text-brand-700")}>
-                    {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-brand-600" aria-hidden />}
-                    <Icon className={cx("h-[18px] w-[18px] shrink-0", active ? "text-brand-600" : "text-slate-400 group-hover:text-brand-600")} aria-hidden />
-                    {l.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        <ul key={s} className="space-y-1" aria-label={s || undefined}>
+          {links.filter((l) => (l.section ?? "") === s).map((l) => {
+            const Icon = NAV_ICONS[l.icon];
+            const active = isActive(path, l.href);
+            return (
+              <li key={l.href}>
+                <Link href={l.href} aria-current={active ? "page" : undefined}
+                  className={cx("group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14px] font-medium transition",
+                    active ? "bg-brand-500 text-white shadow-sm shadow-brand-600/25" : "text-slate-600 hover:bg-brand-50 hover:text-brand-800")}>
+                  <Icon className={cx("h-[18px] w-[18px] shrink-0", active ? "text-white" : "text-slate-400 group-hover:text-brand-600")} strokeWidth={1.8} aria-hidden />
+                  {l.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       ))}
     </nav>
   );
@@ -54,14 +50,14 @@ export function NavLinks({ links }: { links: NavItem[] }) {
 export function MobileNav({ links }: { links: NavItem[] }) {
   const path = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto px-3 py-2" aria-label="Main">
+    <nav className="flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none]" aria-label="Main">
       {links.map((l) => {
         const Icon = NAV_ICONS[l.icon];
         const active = isActive(path, l.href);
         return (
           <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
             className={cx("flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap",
-              active ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100")}>
+              active ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-brand-50")}>
             <Icon className="h-4 w-4" aria-hidden />{l.label}
           </Link>
         );
@@ -70,11 +66,26 @@ export function MobileNav({ links }: { links: NavItem[] }) {
   );
 }
 
-/** Title of the current section for the top bar. */
+const EXTRA: Record<string, string> = { "/account": "My account", "/notifications": "Notifications", "/search": "Search" };
+
+/** Section title + breadcrumb for the top bar ("Projects" / Dashboard › Projects). */
 export function CurrentSection({ links }: { links: NavItem[] }) {
   const path = usePathname();
   const match = [...links].sort((a, b) => b.href.length - a.href.length).find((l) => isActive(path, l.href));
-  const extra: Record<string, string> = { "/account": "My account", "/notifications": "Notifications", "/search": "Search" };
-  const label = match?.label ?? Object.entries(extra).find(([k]) => path.startsWith(k))?.[1] ?? "";
-  return <span className="truncate text-sm font-medium text-slate-500">{label}</span>;
+  const label = match?.label ?? Object.entries(EXTRA).find(([k]) => path.startsWith(k))?.[1] ?? "";
+  const sectionHref = match?.href ?? path;
+  const deeper = path !== sectionHref && path !== "/";
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-[20px] font-semibold leading-tight tracking-tight text-slate-900">{label || "Dashboard"}</div>
+      <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-slate-500">
+        {path === "/" ? <span>Overview</span> : <>
+          <Link href="/" className="font-medium text-brand-600 hover:underline">Dashboard</Link>
+          <span aria-hidden>/</span>
+          {deeper ? <Link href={sectionHref} className="font-medium text-brand-600 hover:underline">{label}</Link> : <span>{label}</span>}
+          {deeper && <><span aria-hidden>/</span><span>{path.endsWith("/new") ? "New" : "Details"}</span></>}
+        </>}
+      </div>
+    </div>
+  );
 }
