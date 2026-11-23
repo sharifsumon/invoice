@@ -115,23 +115,41 @@ describe("Business value (BR-01..03, BR-12)", () => {
 });
 
 describe("PO approval & automatic milestone invoices (BR-04..06)", () => {
-  it("refuses approval when milestones do not total 100%, leaving nothing behind", async () => {
+  it("refuses to create a PO whose milestones do not total 100%, leaving nothing behind", async () => {
     const p = await approvedProject();
-    const o = await po(p.id, "1000", [["A", "50"], ["B", "40"]]);
-    await expect(approvePO(db, finance, o.id)).rejects.toThrow(/exactly 100%/);
-    const fresh = await db.purchaseOrder.findUniqueOrThrow({ where: { id: o.id } });
-    expect(fresh.status).toBe(POStatus.DRAFT);
-    expect(await db.invoice.count({ where: { poId: o.id } })).toBe(0);
+    const number = uid("PO");
+    await expect(createPO(db, finance, { poNumber: number, projectId: p.id, poDate: "2026-04-01", value: "1000",
+      milestones: [{ name: "A", percentage: "50" }, { name: "B", percentage: "40" }] })).rejects.toThrow(/exactly 100%/);
+    expect(await db.purchaseOrder.count({ where: { poNumber: number } })).toBe(0);
   });
 
-  it("creates exactly one draft invoice per milestone with exact amounts", async () => {
+  it("a new PO is submitted for approval with one pending invoice per milestone (exact amounts)", async () => {
     const p = await approvedProject();
     const o = await po(p.id, "1000.00", [["Kickoff", "33.3333"], ["Build", "33.3333"], ["Go-live", "33.3334"]]);
-    const r = await approvePO(db, finance, o.id);
-    expect(r.generated).toBe(3);
+    expect(o.status).toBe(POStatus.SUBMITTED);
     const invs = await db.invoice.findMany({ where: { poId: o.id }, orderBy: { createdAt: "asc" } });
     expect(invs.map((i) => i.subtotal.toString())).toEqual(["333.33", "333.33", "333.34"]);
     expect(invs.every((i) => i.status === InvoiceStatus.DRAFT && i.milestoneId)).toBe(true);
+    // Pending approval: cannot be finalized yet
+    await expect(finalizeInvoice(db, finance, invs[0].id, { invoiceDate: "2026-04-02" })).rejects.toThrow(/pending approval/);
+    // Approval releases them (no duplicates created)
+    const r = await approvePO(db, finance, o.id);
+    expect(r.generated).toBe(0);
+    expect(await db.invoice.count({ where: { poId: o.id, status: { not: InvoiceStatus.CANCELLED } } })).toBe(3);
+    const fin = await finalizeInvoice(db, finance, invs[0].id, { invoiceDate: "2026-04-02" });
+    expect(fin.status).toBe(InvoiceStatus.UNPAID);
+  });
+
+  it("rejecting a submitted PO cancels its pending invoices; resubmitting drafts them again", async () => {
+    const p = await approvedProject();
+    const o = await po(p.id, "800", [["A", "50"], ["B", "50"]]);
+    await transitionPO(db, admin, o.id, POStatus.REJECTED);
+    const after = await db.invoice.findMany({ where: { poId: o.id } });
+    expect(after.length).toBe(2);
+    expect(after.every((i) => i.status === InvoiceStatus.CANCELLED && i.cancelReason)).toBe(true);
+    await transitionPO(db, finance, o.id, POStatus.DRAFT);
+    await transitionPO(db, finance, o.id, POStatus.SUBMITTED);
+    expect(await db.invoice.count({ where: { poId: o.id, status: InvoiceStatus.DRAFT } })).toBe(2);
   });
 
   it("is idempotent — retries never duplicate milestone invoices", async () => {

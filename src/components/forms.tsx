@@ -7,10 +7,12 @@ import { buttonClass, cx, type BtnVariant } from "./ui";
 export type ActionState = { ok?: boolean; error?: string; message?: string; at?: number } | null;
 type ServerAction = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
-export function SubmitButton({ children, variant = "primary", size = "md", pendingText, className }: { children: ReactNode; variant?: BtnVariant; size?: "sm" | "md"; pendingText?: string; className?: string }) {
+export function SubmitButton({ children, variant = "primary", size = "md", pendingText, className, name, value }: {
+  children: ReactNode; variant?: BtnVariant; size?: "sm" | "md"; pendingText?: string; className?: string; name?: string; value?: string;
+}) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={cx(buttonClass(variant, size), className)}>
+    <button type="submit" name={name} value={value} disabled={pending} className={cx(buttonClass(variant, size), className)}>
       {pending ? (pendingText ?? "Saving…") : children}
     </button>
   );

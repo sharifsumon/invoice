@@ -76,11 +76,14 @@ export async function createPO(db: Db, actor: Actor, raw: POInput) {
         paymentTerms: data.paymentTerms || null,
         reference: data.reference || null,
         remarks: data.remarks || null,
+        status: POStatus.SUBMITTED, // new POs go straight to "Submitted for approval"
         milestones: { create: buildMilestones(value, data.milestones) },
       },
       include: { milestones: true },
     });
     await audit(tx, actor, "po.created", "PurchaseOrder", po.id, { after: po });
+    // Milestone invoices are drafted right away and wait ("pending approval") until the PO is approved.
+    await generateMilestoneInvoicesTx(tx, actor, po.id);
     return po;
   });
 }
@@ -96,6 +99,8 @@ export async function updatePO(db: Db, actor: Actor, id: string, raw: POInput) {
       throw new RuleError(`A ${before.status.toLowerCase()} PO cannot be edited. Approved POs are locked.`);
     }
     const project = await tx.project.findUniqueOrThrow({ where: { id: data.projectId } });
+    // Pending milestone invoices are rebuilt from the edited plan.
+    await cancelPendingInvoicesTx(tx, actor, id, "PO edited — milestone invoices rebuilt");
     await tx.paymentMilestone.deleteMany({ where: { poId: id } });
     const po = await tx.purchaseOrder.update({
       where: { id },
@@ -116,6 +121,7 @@ export async function updatePO(db: Db, actor: Actor, id: string, raw: POInput) {
       include: { milestones: true },
     });
     await audit(tx, actor, "po.updated", "PurchaseOrder", id, { before, after: po });
+    if (po.status === POStatus.SUBMITTED) await generateMilestoneInvoicesTx(tx, actor, id);
     return po;
   });
 }
@@ -147,6 +153,10 @@ export async function transitionPO(db: Db, actor: Actor, id: string, to: POStatu
     if (!PO_TRANSITIONS[before.status].includes(to)) {
       throw new RuleError(`Cannot move a PO from ${before.status} to ${to}`);
     }
+    // Leaving the approval queue (rejected, back to draft, cancelled) withdraws its pending invoices.
+    if (before.status !== POStatus.APPROVED && (to === POStatus.REJECTED || to === POStatus.DRAFT || to === POStatus.CANCELLED)) {
+      await cancelPendingInvoicesTx(tx, actor, id, `PO ${to === POStatus.DRAFT ? "moved back to draft" : to.toLowerCase()}`);
+    }
     if (to === POStatus.CANCELLED) {
       const valid = await tx.invoice.count({ where: { poId: id, status: { not: InvoiceStatus.CANCELLED } } });
       if (valid) throw new RuleError("Cancel all valid invoices on this PO before cancelling it");
@@ -156,7 +166,8 @@ export async function transitionPO(db: Db, actor: Actor, id: string, to: POStatu
     await audit(tx, actor, `po.status.${to.toLowerCase()}`, "PurchaseOrder", id, {
       before: { status: before.status }, after: { status: to }, reason: reason ?? null,
     });
-    return { po, generated: 0 };
+    const generated = to === POStatus.SUBMITTED ? await generateMilestoneInvoicesTx(tx, actor, id) : 0;
+    return { po, generated };
   });
 }
 
@@ -171,7 +182,7 @@ export async function approvePO(db: Db, actor: Actor, id: string) {
     const r = await approvePOTx(db, actor, id);
     await notify(db, NotificationEvent.PO_APPROVED, {
       title: `PO ${r.po.poNumber} approved`,
-      body: r.generated ? `${r.generated} milestone invoice(s) generated as drafts.` : "No milestone plan — raise invoices manually.",
+      body: r.milestones ? `${r.milestones} milestone invoice(s) are ready to finalize.` : "No milestone plan — raise invoices manually.",
       link: `/pos/${id}`, dedupeKey: id,
     });
     return r;
@@ -207,8 +218,8 @@ async function approvePOTx(db: Db, actor: Actor, id: string) {
       data: { status: POStatus.APPROVED, approvedAt: new Date(), approvedById: actor.id },
     });
     await audit(tx, actor, "po.status.approved", "PurchaseOrder", id, { before: { status: po.status }, after: { status: "APPROVED" } });
-    const generated = await generateMilestoneInvoicesTx(tx, actor, id);
-    return { po: await tx.purchaseOrder.findUniqueOrThrow({ where: { id } }), generated };
+    const generated = await generateMilestoneInvoicesTx(tx, actor, id); // normally 0: they were drafted on submission
+    return { po: await tx.purchaseOrder.findUniqueOrThrow({ where: { id } }), generated, milestones: po.milestones.length };
   });
 }
 
@@ -223,7 +234,10 @@ export async function generateMilestoneInvoicesTx(tx: Tx, actor: Actor | null, p
       },
     },
   });
-  if (po.status !== POStatus.APPROVED) throw new RuleError("Milestone invoices are generated only for approved POs");
+  if (!DRAFTABLE.includes(po.status)) throw new RuleError("Milestone invoices are created only for submitted or approved POs");
+  if (po.milestones.length && !isMilestonePlanComplete(po.milestones)) {
+    throw new RuleError("Milestone percentages must total exactly 100% — the milestone invoices are created from them");
+  }
   const template = await tx.invoiceTemplateSettings.findUnique({ where: { id: 1 } });
   const company = await tx.companySettings.findUnique({ where: { id: 1 } });
   const taxRate = template?.showTax ? template.defaultTaxRate : dec(0);
@@ -265,6 +279,22 @@ export async function generateMilestoneInvoicesTx(tx: Tx, actor: Actor | null, p
     created++;
   }
   return created;
+}
+
+/** PO statuses on which milestone invoices may exist as drafts (pending approval until APPROVED). */
+const DRAFTABLE: POStatus[] = [POStatus.SUBMITTED, POStatus.ON_HOLD, POStatus.APPROVED];
+
+/** Cancel the never-issued (draft) invoices of a PO, e.g. when it is rejected or its milestones are edited. */
+export async function cancelPendingInvoicesTx(tx: Tx, actor: Actor | null, poId: string, reason: string) {
+  const drafts = await tx.invoice.findMany({ where: { poId, status: InvoiceStatus.DRAFT }, select: { id: true } });
+  for (const d of drafts) {
+    await tx.invoice.update({
+      where: { id: d.id },
+      data: { status: InvoiceStatus.CANCELLED, cancelledAt: new Date(), cancelledById: actor?.id ?? null, cancelReason: reason },
+    });
+    await audit(tx, actor, "invoice.cancelled", "Invoice", d.id, { before: { status: "DRAFT" }, after: { status: "CANCELLED" }, reason });
+  }
+  return drafts.length;
 }
 
 /** Retry entry point (e.g. after a failure): safe to call any number of times. */

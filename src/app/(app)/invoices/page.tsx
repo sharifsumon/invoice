@@ -7,7 +7,7 @@ import { prisma } from "@/server/db";
 import { filtersToWhere, invoiceListInclude, readFilters } from "@/server/invoice-list";
 import { groupSum } from "@/server/queries";
 import { Money, MultiMoney } from "@/components/money";
-import { buttonClass, Card, fmtDate, Input, labelize, PageHeader, Select, Stat, StatusBadge, Table, Td } from "@/components/ui";
+import { buttonClass, Card, fmtDate, Input, labelize, isPoApproved, PageHeader, Select, Stat, StatusBadge, Table, Td } from "@/components/ui";
 
 export const metadata = { title: "Invoices" };
 
@@ -70,7 +70,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
                 <Td>{i.project.code}<div className="text-xs text-slate-400">PO {i.po.poNumber}</div></Td>
                 <Td>{fmtDate(i.invoiceDate)}</Td>
                 <Td>{fmtDate(i.dueDate)}</Td>
-                <Td><span className="flex flex-wrap gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
+                <Td><span className="flex flex-wrap gap-1"><StatusBadge status={i.status} pending={!isPoApproved(i.po.status)} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                 <Td><Money v={i.total} cur={i.currency} /></Td>
                 <Td>{i.status === "CANCELLED" ? "—" : <Money v={i.total.minus(i.amountPaid)} cur={i.currency} />}</Td>
               </tr>

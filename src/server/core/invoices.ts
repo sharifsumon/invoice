@@ -241,6 +241,10 @@ export async function finalizeInvoice(db: Db, actor: Actor, id: string, opts: { 
     await lockPO(tx, pre.poId);
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id } });
     if (inv.status !== InvoiceStatus.DRAFT) throw new RuleError("Only draft invoices can be finalized");
+    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: inv.poId }, select: { status: true, poNumber: true } });
+    if (po.status !== POStatus.APPROVED && po.status !== POStatus.COMPLETED) {
+      throw new RuleError(`This invoice is pending approval — approve PO ${po.poNumber} before finalizing it`);
+    }
 
     const company = await tx.companySettings.findUniqueOrThrow({ where: { id: 1 } });
     const invoiceDate = parseDate(opts.invoiceDate || null) ?? inv.invoiceDate ?? today();

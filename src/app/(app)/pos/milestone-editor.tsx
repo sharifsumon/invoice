@@ -33,7 +33,7 @@ export function MilestoneEditor({ initial, defaultValue, currency }: { initial: 
         <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
           <span className="text-xs font-medium text-slate-600">Payment milestones</span>
           <span className={`text-xs font-medium ${ok ? "text-brand-600" : "text-lime-ink"}`}>
-            Total {totalRounded}% {rows.length > 0 && !ok && "— must equal 100% before approval"}
+            Total {totalRounded}% {rows.length > 0 && !ok && "— must equal 100%"}
           </span>
         </div>
         <div className="divide-y divide-slate-100">
@@ -82,7 +82,7 @@ export function MilestoneEditor({ initial, defaultValue, currency }: { initial: 
           )}
         </div>
       </div>
-      <p className="text-xs text-slate-400">Amounts shown are a preview. On approval they are recalculated exactly, with any rounding difference placed on the last milestone.</p>
+      <p className="text-xs text-slate-400">Percentages must total 100%. Saving creates one invoice per milestone, pending approval until the PO is approved. Amounts shown are a preview. On approval they are recalculated exactly, with any rounding difference placed on the last milestone.</p>
     </div>
   );
 }

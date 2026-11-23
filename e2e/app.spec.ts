@@ -83,14 +83,15 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   await page.getByRole("button", { name: "+ Add milestone" }).click();
   await page.getByLabel("Milestone 2 name").fill("Delivery");
   await page.getByLabel("Percentage").nth(1).fill("50");
-  await expect(page.getByText("Total 100%")).toBeVisible();
-  await page.getByRole("button", { name: "Create PO" }).click();
+  await expect(page.getByText("Total 100%", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByRole("heading", { name: /PO ORB-PO-1/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Submit for approval" }).click();
-  await expect(page.getByText("PO moved to submitted")).toBeVisible();
+  // Saved straight into "Submitted for approval", with one pending invoice per milestone
+  await expect(page.getByText("Submitted for approval").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Pending approval" })).toHaveCount(2);
   await page.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(page.getByText("PO approved — 2 milestone invoices generated as drafts")).toBeVisible();
+  await expect(page.getByText("PO approved — 2 milestone invoices ready to finalize")).toBeVisible();
   await expect(page.getByText("This PO is fully invoiced")).toBeVisible(); // strict cap: 100% allocated, no manual invoice possible
 
   // Finalize the first milestone invoice

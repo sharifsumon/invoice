@@ -11,7 +11,7 @@ import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { LineEditor } from "@/components/line-editor";
 import { Money } from "@/components/money";
-import { Badge, Card, DL, Flash, Field, fmtDate, Input, labelize, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
+import { Badge, Card, DL, Flash, Field, fmtDate, Input, isPoApproved, labelize, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import {
   createManualInvoiceAction, removeAttachmentAction, retryGenerationAction, transitionPOAction, updatePOAction, uploadAttachmentAction,
 } from "../actions";
@@ -50,7 +50,8 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
     can(user.role, "pos", t === "APPROVED" || t === "REJECTED" ? "approve" : t === "CANCELLED" ? "cancel" : "edit"));
   const pctTotal = sum(po.milestones.map((m) => m.percentage));
   const planOk = isMilestonePlanComplete(po.milestones);
-  const missingInvoices = po.status === "APPROVED" && po.milestones.some((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
+  const approved = isPoApproved(po.status);
+  const missingInvoices = (po.status === "APPROVED" || po.status === "SUBMITTED") && planOk && po.milestones.some((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
   const openMilestones = po.milestones.filter((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
   const canInvoice = po.status === "APPROVED" && can(user.role, "invoices", "create");
 
@@ -71,14 +72,19 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
             </p>
           )}
           {po.milestones.length > 0 && planOk && transitions.includes("APPROVED") && (
-            <p className="mb-3 text-sm text-slate-500">Approving will automatically create {po.milestones.length} draft invoice{po.milestones.length > 1 ? "s" : ""}, one per milestone.</p>
+            <p className="mb-3 text-sm text-slate-500">
+              {po.status === "SUBMITTED"
+                ? <>Its {po.milestones.length} milestone invoice{po.milestones.length > 1 ? "s are" : " is"} drafted and waiting. Approving releases them for finalizing; rejecting cancels them.</>
+                : <>Approving will create {po.milestones.length} draft invoice{po.milestones.length > 1 ? "s" : ""}, one per milestone.</>}
+            </p>
           )}
           <div className="flex flex-wrap items-start gap-3">
             {transitions.map((t) => (
               <ActionButton key={t} action={transitionPOAction.bind(null, po.id, t)} label={LABELS[t] ?? labelize(t)}
                 variant={t === "APPROVED" ? "primary" : t === "REJECTED" || t === "CANCELLED" ? "danger" : "secondary"}
                 reasonPrompt={t === "CANCELLED" ? "Reason for cancelling this PO" : undefined}
-                confirm={t === "APPROVED" ? "Approve this PO? Approved POs are locked and milestone invoices will be generated." : undefined} />
+                confirm={t === "APPROVED" ? "Approve this PO? It will be locked and its milestone invoices become ready to finalize."
+                  : t === "REJECTED" || t === "DRAFT" ? "Its pending milestone invoices will be cancelled. Continue?" : undefined} />
             ))}
           </div>
         </Card>
@@ -106,7 +112,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                     <Td className="tabular">{m.percentage.toDecimalPlaces(4).toString()}%</Td>
                     <Td><Money v={m.amount} cur={po.currency} /></Td>
                     <Td>{fmtDate(m.expectedDate)}</Td>
-                    <Td>{active ? <Link href={`/invoices/${active.id}`} className="text-brand-700 hover:underline">{active.invoiceNumber ?? "Draft"}</Link>
+                    <Td>{active ? <Link href={`/invoices/${active.id}`} className="text-brand-700 hover:underline">{active.invoiceNumber ?? (approved ? "Draft" : "Pending approval")}</Link>
                       : <span className="text-slate-400">{m.invoices.length ? "Cancelled — available" : "—"}</span>}</Td>
                   </tr>
                 );
@@ -123,7 +129,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                 <tr key={i.id} className={i.status === "CANCELLED" ? "opacity-60" : ""}>
                   <Td><Link href={`/invoices/${i.id}`} className="text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>{i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}</Td>
                   <Td><Badge>{labelize(i.kind)}</Badge></Td>
-                  <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
+                  <Td><span className="flex gap-1"><StatusBadge status={i.status} pending={!approved} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                   <Td>{fmtDate(i.dueDate)}</Td>
                   <Td><Money v={i.subtotal.minus(i.discount)} cur={i.currency} /></Td>
                   <Td><Money v={i.total} cur={i.currency} /></Td>

@@ -129,9 +129,13 @@ const STATUS_TONES: Record<string, Tone> = {
   CANCELLED: "red", REJECTED: "red", INACTIVE: "slate",
   UNPAID: "amber", PARTIALLY_PAID: "blue", PAID: "green", OVERDUE: "red",
 };
-export function StatusBadge({ status }: { status: string }) {
-  return <Badge dot tone={STATUS_TONES[status] ?? "slate"}>{labelize(status)}</Badge>;
+const STATUS_LABELS: Record<string, string> = { SUBMITTED: "Submitted for approval" };
+/** `pending`: a draft invoice whose PO is not approved yet — shown as "Pending approval". */
+export function StatusBadge({ status, pending }: { status: string; pending?: boolean }) {
+  if (pending && status === "DRAFT") return <Badge dot tone="amber">Pending approval</Badge>;
+  return <Badge dot tone={STATUS_TONES[status] ?? "slate"}>{STATUS_LABELS[status] ?? labelize(status)}</Badge>;
 }
+export const isPoApproved = (status: string) => status === "APPROVED" || status === "COMPLETED";
 export function labelize(s: string) {
   return s.toLowerCase().split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }

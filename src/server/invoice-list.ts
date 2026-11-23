@@ -37,5 +37,5 @@ export function filtersToWhere(f: InvoiceFilters): Prisma.InvoiceWhereInput {
 export const invoiceListInclude = {
   client: { select: { id: true, name: true } },
   project: { select: { id: true, code: true, name: true } },
-  po: { select: { id: true, poNumber: true } },
+  po: { select: { id: true, poNumber: true, status: true } },
 } satisfies Prisma.InvoiceInclude;

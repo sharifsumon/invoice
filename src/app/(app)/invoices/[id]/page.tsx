@@ -9,7 +9,7 @@ import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { LineEditor } from "@/components/line-editor";
 import { Money } from "@/components/money";
-import { Badge, buttonClass, Card, DL, Flash, Field, fmtDate, Input, isoDate, labelize, PageHeader, StatusBadge, Table, Td, Textarea } from "@/components/ui";
+import { Badge, buttonClass, Card, DL, Flash, Field, fmtDate, Input, isoDate, isPoApproved, labelize, PageHeader, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import { cancelAction, finalizeAction, reissueAction, updateDraftAction } from "../actions";
 import { PrintButton } from "./print-button";
 import { EmailCard, PaymentsCard } from "./payments-email";
@@ -38,7 +38,9 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const isDraft = inv.status === "DRAFT";
   const isCancelled = inv.status === "CANCELLED";
   const canEdit = isDraft && can(user.role, "invoices", "edit");
-  const canFinalize = isDraft && can(user.role, "invoices", "approve");
+  const poApproved = isPoApproved(inv.po.status);
+  const pendingApproval = isDraft && !poApproved;
+  const canFinalize = isDraft && poApproved && can(user.role, "invoices", "approve");
   const canCancel = !isCancelled && can(user.role, "invoices", "cancel") && inv.amountPaid.eq(0);
   const pdfUrl = `/api/invoices/${inv.id}/pdf`;
   const ownAllocation = isCancelled ? 0 : inv.subtotal.minus(inv.discount);
@@ -50,7 +52,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
       <PageHeader
         back={{ href: "/invoices", label: "Invoices" }}
         title={<span className="flex flex-wrap items-center gap-3">{inv.invoiceNumber ?? "Draft invoice"}
-          <StatusBadge status={inv.status} />{isOverdue(inv) && <StatusBadge status="OVERDUE" />}
+          <StatusBadge status={inv.status} pending={pendingApproval} />{isOverdue(inv) && <StatusBadge status="OVERDUE" />}
           {inv.version > 1 && <Badge tone="purple">Revised v{inv.version}</Badge>}</span>}
         subtitle={<>
           <Link href={`/clients/${inv.clientId}`} className="hover:underline">{inv.client.name}</Link> ·{" "}
@@ -65,6 +67,13 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           {!isDraft && !isCancelled && can(user.role, "invoices", "email") && <a href="#email" className={buttonClass("primary")}>Email invoice</a>}
         </>}
       />
+
+      {pendingApproval && (
+        <div className="mb-6 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
+          Pending approval: this milestone invoice was drafted when <Link href={`/pos/${inv.poId}`} className="font-semibold underline underline-offset-2">PO {inv.po.poNumber}</Link> was
+          submitted. It can be finalized once the PO is approved, and is cancelled automatically if the PO is rejected.
+        </div>
+      )}
 
       {isCancelled && (
         <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

@@ -54,7 +54,7 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
     prisma.purchaseOrder.count({ where: { status: { in: [POStatus.APPROVED, POStatus.COMPLETED] } } }),
     prisma.purchaseOrder.count({ where: { status: POStatus.SUBMITTED } }),
     prisma.invoice.findMany({ where: { status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] } }, select: { currency: true, total: true, amountPaid: true, status: true, dueDate: true } }),
-    prisma.invoice.count({ where: { status: InvoiceStatus.DRAFT } }),
+    prisma.invoice.count({ where: { status: InvoiceStatus.DRAFT, po: { status: { in: [POStatus.APPROVED, POStatus.COMPLETED] } } } }),
     prisma.$queryRaw<{ month: number; currency: string; value: string }[]>`
       SELECT EXTRACT(MONTH FROM "invoiceDate")::int AS month, "currency", SUM("total")::text AS value
         FROM "Invoice" WHERE "status" NOT IN ('DRAFT','CANCELLED') AND EXTRACT(YEAR FROM "invoiceDate") = ${year}

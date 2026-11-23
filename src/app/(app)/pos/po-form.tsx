@@ -3,7 +3,7 @@ import { ActionForm, SubmitButton, type ActionState } from "@/components/forms";
 import { Field, Input, isoDate, Select, Textarea } from "@/components/ui";
 import { MilestoneEditor } from "./milestone-editor";
 
-export function POForm({ action, po, projects, defaultProjectId, defaultCurrency, submitLabel = "Save" }: {
+export function POForm({ action, po, projects, defaultProjectId, defaultCurrency, submitLabel = "Save", canApprove }: {
   action: (s: ActionState, fd: FormData) => Promise<ActionState>;
   po?: PurchaseOrder & { milestones: PaymentMilestone[] };
   projects: { id: string; code: string; name: string; currency: string; client: { name: string } }[];
@@ -11,6 +11,8 @@ export function POForm({ action, po, projects, defaultProjectId, defaultCurrency
   /** Company currency from Settings. */
   defaultCurrency: string;
   submitLabel?: string;
+  /** New PO only: also offer "Approve" (save and approve in one step). */
+  canApprove?: boolean;
 }) {
   const projectId = po?.projectId ?? defaultProjectId ?? "";
   const currency = po?.currency ?? projects.find((p) => p.id === projectId)?.currency ?? defaultCurrency;
@@ -34,7 +36,15 @@ export function POForm({ action, po, projects, defaultProjectId, defaultCurrency
         </div>
         <Field label="Remarks" className="sm:col-span-2"><Textarea name="remarks" defaultValue={po?.remarks ?? ""} /></Field>
       </div>
-      <SubmitButton>{submitLabel}</SubmitButton>
+      {po ? <SubmitButton>{submitLabel}</SubmitButton> : (
+        <div className="flex flex-wrap items-center gap-3">
+          <SubmitButton name="intent" value="draft" variant="secondary" pendingText="Saving…">Save draft</SubmitButton>
+          {canApprove && <SubmitButton name="intent" value="approve" pendingText="Approving…">Approve</SubmitButton>}
+          <span className="text-xs text-slate-500">
+            {canApprove ? "Save draft keeps it waiting for approval; Approve saves and approves it now." : "The PO will wait for approval."}
+          </span>
+        </div>
+      )}
     </ActionForm>
   );
 }

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { NotificationEvent, PaymentMethod, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { NotificationEvent, PaymentMethod, POStatus, ProjectStatus, Role } from "@/generated/prisma/enums";
 import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject } from "@/server/core/projects";
-import { approvePO, createPO } from "@/server/core/pos";
+import { approvePO, createPO, transitionPO, updatePO } from "@/server/core/pos";
 import { createManualInvoice, finalizeInvoice } from "@/server/core/invoices";
 import { recordPayment } from "@/server/core/payments";
 import { addRate, loadRateBook } from "@/server/core/fx";
@@ -147,7 +147,11 @@ describe("Notifications (BRD §5.9)", () => {
 
   it("failed milestone approval raises a generation-failure notification", async () => {
     const p = await project("500", true);
-    const po = await createPO(db, finance, { poNumber: uid("NPO"), projectId: p.id, poDate: "2026-04-01", value: "100", milestones: [{ name: "Half", percentage: "50" }] });
+    // A PO sent back to draft and edited to an incomplete plan cannot be approved.
+    const base = { poNumber: uid("NPO"), projectId: p.id, poDate: "2026-04-01", value: "100" };
+    const po = await createPO(db, finance, { ...base, milestones: [{ name: "All", percentage: "100" }] });
+    await transitionPO(db, finance, po.id, POStatus.DRAFT);
+    await updatePO(db, finance, po.id, { ...base, milestones: [{ name: "Half", percentage: "50" }] });
     await expect(approvePO(db, finance, po.id)).rejects.toThrow(/100%/);
     expect(await db.notification.count({ where: { userId: finance.id, event: NotificationEvent.INVOICE_GENERATION_FAILED, link: `/pos/${po.id}` } })).toBe(1);
   });
