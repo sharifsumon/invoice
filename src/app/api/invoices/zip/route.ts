@@ -3,7 +3,7 @@ import { PassThrough } from "node:stream";
 import { NextResponse } from "next/server";
 import { getUser } from "@/server/auth";
 import { can } from "@/server/core/permissions";
-import { loadFile } from "@/server/core/storage";
+import { servedInvoicePdf } from "@/server/core/invoices";
 import { prisma } from "@/server/db";
 
 /** Bulk download of finalized invoice PDFs as a ZIP (POST with ids[]). */
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const out = new PassThrough();
   zip.pipe(out);
   for (const inv of withPdf) {
-    zip.append(await loadFile(inv.documents[0].filePath), { name: `${(inv.invoiceNumber ?? inv.id).replace(/[^\w.-]/g, "_")}.pdf` });
+    zip.append((await servedInvoicePdf(prisma, inv.id)).pdf, { name: `${(inv.invoiceNumber ?? inv.id).replace(/[^\w.-]/g, "_")}.pdf` });
   }
   void zip.finalize();
   const chunks: Buffer[] = [];

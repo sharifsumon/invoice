@@ -4,12 +4,11 @@ import { useState } from "react";
 import { Field, inputClass } from "@/components/ui";
 
 /**
- * Payment amount (left empty on purpose, so a full payment is never recorded by accident).
- * When the amount is less than what is outstanding, offers — ticked by default — to create a new invoice
+ * Payment amount, pre-filled with the outstanding balance and editable. When the amount is less than what is outstanding, offers — ticked by default — to create a new invoice
  * for the remaining balance (a balance invoice). Unticked: the invoice simply stays Partially Paid.
  */
 export function PaymentAmount({ outstanding, currency, canBalance }: { outstanding: number; currency: string; canBalance: boolean }) {
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(outstanding.toFixed(2));
   const [carry, setCarry] = useState(true);
   const n = Number(amount.replace(/,/g, ""));
   const partial = amount.trim() !== "" && n > 0 && n < outstanding;
@@ -20,11 +19,9 @@ export function PaymentAmount({ outstanding, currency, canBalance }: { outstandi
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label={`Amount received (${currency}) *`} hint={`Outstanding: ${outstanding.toFixed(2)}. Enter less for a partial payment.`}>
           <input name="amount" required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)}
-            placeholder={`e.g. ${(outstanding / 2).toFixed(2)}`} className={inputClass} />
+            className={inputClass} />
         </Field>
         <div className="flex items-end gap-2 pb-1 sm:col-span-2">
-          <button type="button" onClick={() => setAmount(outstanding.toFixed(2))}
-            className="rounded-lg bg-lime-soft px-3 py-2 text-xs font-medium text-brand-950 hover:bg-lime-mid">Pay full {outstanding.toFixed(2)}</button>
           {partial && <span className="pb-2 text-xs font-medium text-lime-ink">Partial payment — {currency} {rest} will remain</span>}
           {over && <span className="pb-2 text-xs font-medium text-rose-600">More than the outstanding balance</span>}
         </div>

@@ -242,6 +242,45 @@ export async function loadLogo(logoPath: string | null) {
 }
 
 /**
+ * The PDF to show, download or send for an invoice.
+ * - Draft: live preview watermarked DRAFT.
+ * - Finalized, nothing paid or carried: the stored PDF exactly as finalized (BR-14).
+ * - Finalized with payments or a balance carried to another invoice: the frozen snapshot re-rendered with a
+ *   payment summary (each payment, balance due). The stored original is kept untouched for audit.
+ */
+export async function servedInvoicePdf(db: Db, invoiceId: string): Promise<{ pdf: Buffer; name: string; storedPath: string | null }> {
+  const inv = await db.invoice.findUniqueOrThrow({
+    where: { id: invoiceId },
+    include: {
+      documents: { orderBy: { version: "desc" }, take: 1 },
+      payments: { where: { state: "VALID" }, orderBy: [{ paymentDate: "asc" }, { createdAt: "asc" }] },
+    },
+  });
+  const doc = inv.documents[0];
+  if (!doc) {
+    const { snap, logoPath } = await buildSnapshot(db, invoiceId);
+    return { pdf: await renderInvoicePdf(snap, { logo: await loadLogo(logoPath), draft: true }), name: `DRAFT-${invoiceId}.pdf`, storedPath: null };
+  }
+  const name = `${inv.invoiceNumber}.pdf`;
+  const hasPosition = inv.payments.length > 0 || inv.balanceMoved.gt(0);
+  if (!hasPosition || inv.status === InvoiceStatus.CANCELLED || !inv.snapshot) {
+    return { pdf: await loadFile(doc.filePath), name, storedPath: doc.filePath };
+  }
+  const snap = inv.snapshot as unknown as InvoiceSnapshot;
+  snap.payment = {
+    status: inv.status === InvoiceStatus.PAID ? "PAID" : "PARTIALLY PAID",
+    payments: inv.payments.map((p) => ({ date: p.paymentDate.toISOString().slice(0, 10), amount: p.amount.toFixed(2) })),
+    balanceDue: inv.total.minus(inv.amountPaid).toFixed(2),
+  };
+  // The logo the invoice was finalized with (logos are stored by content hash and never deleted)
+  const sha = snap.company.logoSha256;
+  const logo = sha && /^[a-f0-9]+$/i.test(sha)
+    ? (await loadLogo(`branding/${sha}.png`)) ?? (await loadLogo(`branding/${sha}.jpg`))
+    : null;
+  return { pdf: await renderInvoicePdf(snap, { logo }), name, storedPath: doc.filePath };
+}
+
+/**
  * Finalize: assign the next sequential number, freeze a snapshot, render + store the PDF once (BR-14).
  * The stored PDF is what preview, download, print and email all use.
  */

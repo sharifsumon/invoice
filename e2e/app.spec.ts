@@ -108,7 +108,9 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   expect(pdf.headers()["content-type"]).toBe("application/pdf");
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
 
-  // Overpayment rejected, partial payment accepted
+  // Amount is pre-filled with the outstanding balance; overpayment rejected, partial payment accepted
+  await expect(page.getByLabel(/Amount received \(USD\)/)).toHaveValue("5000.00");
+  await expect(page.getByLabel("Receiving account")).toHaveCount(0);
   await page.getByLabel(/Amount received \(USD\)/).fill("6000");
   await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "exceeds the outstanding balance" })).toBeVisible();

@@ -43,7 +43,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance 
           <summary className="cursor-pointer text-sm font-medium text-brand-700">+ Record payment</summary>
           <ActionForm action={recordPaymentAction.bind(null, inv.id)} resetOnSuccess className="mt-3 space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
-              <PaymentAmount outstanding={Number(outstanding)} currency={inv.currency} canBalance={!!canBalance} />
+              <PaymentAmount key={outstanding.toString()} outstanding={Number(outstanding)} currency={inv.currency} canBalance={!!canBalance} />
               <Field label="Payment date *"><Input name="paymentDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} max={new Date().toISOString().slice(0, 10)} /></Field>
               <Field label="Method *">
                 <Select name="method" defaultValue={PaymentMethod.BANK_TRANSFER}>
@@ -51,7 +51,6 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance 
                 </Select>
               </Field>
               <Field label="Transaction / reference no."><Input name="reference" /></Field>
-              <Field label="Receiving account"><Input name="receivingAccount" /></Field>
               <Field label="Receipt (PDF, PNG, JPEG ≤ 5 MB)"><input type="file" name="receipt" accept="application/pdf,image/png,image/jpeg" className="block w-full pt-2 text-sm" /></Field>
               <Field label="Notes" className="sm:col-span-3"><Textarea name="notes" rows={2} /></Field>
             </div>

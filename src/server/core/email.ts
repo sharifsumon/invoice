@@ -7,6 +7,7 @@ import { audit, inTx, type Actor, type Db } from "./common";
 import { formatMoney } from "./money";
 import { can, ForbiddenError, RuleError } from "./permissions";
 import type { InvoiceSnapshot } from "./pdf";
+import { servedInvoicePdf } from "./invoices";
 import { loadFile, saveFile } from "./storage";
 import { outstandingOf } from "./money";
 
@@ -169,9 +170,13 @@ export async function sendInvoiceEmail(db: Db, actor: Actor, invoiceId: string, 
   if (inv.status === InvoiceStatus.CANCELLED) throw new RuleError("A cancelled invoice cannot be emailed");
 
   const doc = inv.documents[0];
-  const pdf = await loadFile(doc.filePath);
+  const stored = await loadFile(doc.filePath);
+  if (createHash("sha256").update(stored).digest("hex") !== doc.sha256) {
+    throw new RuleError("The stored invoice PDF failed its integrity check; it was not sent");
+  }
+  // Once paid or part-paid, send the version with the payment summary (balance due)
+  const pdf = (await servedInvoicePdf(db, invoiceId)).pdf;
   const sha = createHash("sha256").update(pdf).digest("hex");
-  if (sha !== doc.sha256) throw new RuleError("The stored invoice PDF failed its integrity check; it was not sent");
   const filename = `${inv.invoiceNumber}.pdf`.replace(/[^\w.-]/g, "_");
 
   let status: EmailStatus = EmailStatus.SENT;

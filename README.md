@@ -102,7 +102,7 @@ The matrix is in `src/server/core/permissions.ts`. Every server action and route
 2. **Project → PO:** create a PO with optional milestones; the editor shows a running total and preview amounts. Submit the PO, then approve it. If it has milestones, one **draft** invoice is created per milestone.
 3. **Invoice:** review the draft, then finalize it. Finalizing assigns the next number (for example `INV-2026-00001`), sets the dates, freezes the snapshot and stores the PDF. From then on, preview, download, print, export and bulk ZIP all use that same file.
 4. **Correction:** use *Cancel & reissue*. It cancels the invoice, releases the allocation and creates a new draft marked `v2`. An invoice with valid payments must have them reversed first.
-5. **Payment:** on a finalized invoice, use *Record payment*: amount, date, method, reference, receiving account and an optional receipt (PDF, PNG or JPEG). Partial payments are allowed, and the status updates automatically. Use *Reverse* (with a reason) to correct a mistake.
+5. **Payment:** on a finalized invoice, use *Record payment*: amount (pre-filled with the outstanding balance, editable), date, method, reference and an optional receipt (PDF, PNG or JPEG). Partial payments are allowed, and the status updates automatically. Use *Reverse* (with a reason) to correct a mistake.
 6. **Email:** *Email invoice* opens a form pre-filled from the template, addressed to the client's primary contact. Edit To, CC, BCC, subject and body, then send. The finalized PDF is attached. Each attempt, including resends and failures, appears in the send history.
 
 ### Reports (BRD §5.8, §10)

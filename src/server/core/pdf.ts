@@ -24,6 +24,15 @@ export interface InvoiceSnapshot {
     subtotal: string; discount: string; taxRate: string; taxAmount: string; total: string;
     notes: string | null; terms: string | null; amountInWords: string | null; version: number;
   };
+  /** Live payment position, added when the PDF is served (never part of the frozen snapshot). */
+  payment?: PaymentSummary;
+}
+
+export interface PaymentSummary {
+  status: string; // e.g. "PARTIALLY PAID", "PAID"
+  payments: { date: string; amount: string }[];
+  /** Total minus payments on this invoice (a part carried to a balance invoice still counts as due here). */
+  balanceDue: string;
 }
 
 const GREY = "#555555";
@@ -172,6 +181,23 @@ export function renderInvoicePdf(s: InvoiceSnapshot, opts: { logo?: Buffer | nul
       doc.text(k, R - 224, y + (bold ? 1 : 0), { width: 110 });
       doc.text(v, R - 114, y + (bold ? 1 : 0), { width: 108, align: "right" });
       y += bold ? 24 : 16;
+    }
+    if (s.payment) {
+      const p = s.payment;
+      const rows: [string, string, boolean][] = [
+        ...p.payments.map((x) => [`Paid ${fmtDate(x.date)}`, `- ${formatMoney(x.amount, cur)}`, false] as [string, string, boolean]),
+        ["Balance due", formatMoney(p.balanceDue, cur), true],
+      ];
+      for (const [k, v, bold] of rows) {
+        if (bold) { doc.rect(R - 230, y - 4, 230, 22).fill("#ecfdf5"); }
+        doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(bold ? 11 : 9.5).fillColor(bold ? "#065f46" : "#111111");
+        doc.text(k, R - 224, y + (bold ? 1 : 0), { width: 116 });
+        doc.text(v, R - 114, y + (bold ? 1 : 0), { width: 108, align: "right" });
+        y += bold ? 24 : 16;
+      }
+      // Status stamp beside the totals
+      doc.save().font("Helvetica-Bold").fontSize(16).fillColor("#065f46").opacity(0.85)
+        .text(p.status, L, y - 70, { width: R - L - 250, align: "left" }).restore().opacity(1);
     }
     if (s.template.showAmountInWords && s.invoice.amountInWords) {
       doc.font("Helvetica-Oblique").fontSize(8.5).fillColor(GREY).text(`Amount in words: ${s.invoice.amountInWords}`, L, y + 4, { width: R - L });

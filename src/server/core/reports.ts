@@ -191,11 +191,11 @@ export const REPORTS: ReportDef[] = [
         columns: [
           { key: "date", label: "Payment date", kind: "date" }, { key: "invoice", label: "Invoice", kind: "link" }, { key: "client", label: "Client", kind: "text" },
           { key: "project", label: "Project", kind: "text" }, { key: "method", label: "Method", kind: "text" }, { key: "reference", label: "Reference", kind: "text" },
-          { key: "account", label: "Receiving account", kind: "text" }, { key: "amount", label: "Amount", kind: "money" },
+          { key: "amount", label: "Amount", kind: "money" },
         ],
         rows: ps.map((p) => ({
           date: p.paymentDate, invoice: { text: p.invoice.invoiceNumber ?? "—", href: `/invoices/${p.invoice.id}` }, client: p.invoice.client.name,
-          project: p.invoice.project.code, method: p.method, reference: p.reference, account: p.receivingAccount, amount: m(p.amount, p.currency, p.paymentDate),
+          project: p.invoice.project.code, method: p.method, reference: p.reference, amount: m(p.amount, p.currency, p.paymentDate),
         })),
         notes: ["Reversed payments are excluded."],
       };
