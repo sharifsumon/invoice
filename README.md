@@ -122,6 +122,15 @@ monthly commercial performance · client performance · project performance.
 
 **Currencies (BR-12).** By default, totals are shown per currency. To combine currencies, pick a **reporting currency**. Each amount is then converted with the latest recorded rate effective on or before that row's own date; the inverse pair is used if only that direction exists. Amounts with no rate are never guessed: they're flagged "no rate", counted, and left out of the converted total. Rates are managed under Settings → Exchange rates and are for reporting only.
 
+### AI assistant
+
+**AI assistant** (sidebar) answers questions in plain language using Google Gemini: PO and invoice details, overdue lists, comparisons by client/project/month, collections, and any built-in report. Ask for Excel, Word or PDF to get a downloadable file.
+
+- Set up under **Settings → AI assistant**: paste a Google API key (from Google AI Studio), press **Test key** to load the models it can use, pick one, save. The key is stored encrypted (AES-256-GCM, derived from `AUTH_SECRET`) and never sent back to the browser; `GEMINI_API_KEY` in the environment is used if none is saved.
+- Access: the *AI assistant* permission on a user group (Administrator has it by default). The assistant only reads areas the user can view; exports need an *Export* permission. Files are private to the user who asked.
+- Gemini calls read-only tools (`src/server/core/assistant.ts`); totals and exports are computed in code, not by the model. Questions and the data needed to answer them are sent to Google.
+- The system tracks revenue (PO value, invoiced, collected, outstanding) but not costs, so profit/loss can't be calculated until cost data is recorded.
+
 ### Notifications & search (BRD §5.9)
 
 - In-app notifications, shown on the bell in the sidebar, for: invoice due within 7 days, invoice overdue, PO approved, milestone approval/invoice generation failed, and invoice email failed.

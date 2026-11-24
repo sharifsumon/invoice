@@ -11,6 +11,7 @@ import { CurrentSection, MobileNav, NavLinks, type NavItem } from "./nav-links";
 
 const NAV: (NavItem & { module?: Module; action?: Action })[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", section: "Overview" },
+  { href: "/assistant", label: "AI assistant", icon: "assistant", module: "assistant", section: "Overview" },
   { href: "/clients", label: "Clients", icon: "clients", module: "clients", section: "Sales" },
   { href: "/projects", label: "Projects", icon: "projects", module: "projects", section: "Sales" },
   { href: "/pos", label: "Purchase Orders", icon: "pos", module: "pos", section: "Finance" },

@@ -9,14 +9,16 @@ import { groupSum } from "@/server/queries";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { Money } from "@/components/money";
 import { CompanyMoney } from "@/components/company-money";
-import { Badge, Card, DL, Field, fmtDate, Input, labelize, LinkButton, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
+import { Pencil } from "lucide-react";
+import { Badge, buttonClass, Card, DL, Field, Flash, fmtDate, Input, labelize, LinkButton, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import { ClientForm, PHONE_PATTERN } from "../client-form";
 import { addActivityAction, archiveClientAction, deleteContactAction, saveContactAction, updateClientAction } from "../actions";
 import { outstandingOf } from "@/server/core/money";
 
-export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
+export default async function ClientPage({ params, searchParams }: PageProps<"/clients/[id]">) {
   const user = await requirePermission("clients");
   const { id } = await params;
+  const { edit, flash } = await searchParams;
   const client = await prisma.client.findUnique({
     where: { id },
     include: {
@@ -29,6 +31,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
   });
   if (!client) notFound();
   const canEdit = can(user, "clients", "edit");
+  const editing = canEdit && edit === "1";
   const valid = client.invoices.filter((i) => i.status !== "CANCELLED" && i.status !== "DRAFT");
   const outstanding = groupSum(valid, (i) => i.currency, (i) => outstandingOf(i));
   const invoiced = groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total);
@@ -37,6 +40,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
 
   return (
     <>
+      <Flash message={flash} />
       <PageHeader
         back={{ href: "/clients", label: "Clients" }}
         title={<span className="flex items-center gap-3">{client.name} <StatusBadge status={client.status} />{client.archived && <Badge>Archived</Badge>}</span>}
@@ -57,18 +61,20 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card title="Details">
-            {canEdit ? (
-              <details>
-                <summary className="mb-4 cursor-pointer text-sm text-brand-700">Edit details</summary>
-                <ClientForm action={updateClientAction.bind(null, client.id)} client={client} />
-                <hr className="my-5 border-slate-100" />
-              </details>
-            ) : null}
-            <DL items={[
-              ["Industry", client.industry], ["Country", client.country], ["Email", client.email], ["Phone", client.phone],
-              ["Website", client.website], ["Tax / VAT ID", client.taxId], ["Address", client.address], ["Remarks", client.remarks],
-            ]} />
+          <Card title={editing ? "Edit details" : "Details"}
+            actions={canEdit && (editing
+              ? <Link href={`/clients/${client.id}`} scroll={false} className={buttonClass("secondary", "sm")}>Cancel</Link>
+              : <Link href={`/clients/${client.id}?edit=1`} scroll={false} className={buttonClass("secondary", "sm")}>
+                  <Pencil className="h-3.5 w-3.5" aria-hidden />Edit details
+                </Link>)}>
+            {editing ? (
+              <ClientForm action={updateClientAction.bind(null, client.id)} client={client} submitLabel="Save changes" />
+            ) : (
+              <DL items={[
+                ["Industry", client.industry], ["Country", client.country], ["Email", client.email], ["Phone", client.phone],
+                ["Website", client.website], ["Tax / VAT ID", client.taxId], ["Address", client.address], ["Remarks", client.remarks],
+              ]} />
+            )}
           </Card>
 
           <Card title="Projects" actions={<span className="text-xs text-slate-400">{client.projects.length}</span>}>

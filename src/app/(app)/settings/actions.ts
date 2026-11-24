@@ -11,6 +11,36 @@ import { addRate, deleteRate } from "@/server/core/fx";
 import { setNotificationSetting } from "@/server/core/notifications";
 import { NotificationEvent } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
+import { aiConfig, listModels, updateAiSettings } from "@/server/core/ai";
+import { can, ForbiddenError } from "@/server/core/permissions";
+
+export async function saveAiSettingsAction(_: ActionState, fd: FormData) {
+  const actor = await requireUser();
+  return runAction(async () => {
+    await updateAiSettings(prisma, actor, { apiKey: str(fd, "apiKey"), model: str(fd, "model"), removeKey: bool(fd, "removeKey") });
+    revalidatePath("/settings");
+    return bool(fd, "removeKey") ? "API key removed" : "AI assistant settings saved";
+  });
+}
+
+export type AiTestState = { ok?: boolean; error?: string; models?: { name: string; label: string }[]; at?: number } | null;
+
+/** Check a key (the one typed, else the saved one) and list the chat models it can use. */
+export async function testAiKeyAction(_: AiTestState, fd: FormData): Promise<AiTestState> {
+  const actor = await requireUser();
+  try {
+    if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+    const key = str(fd, "apiKey").trim() || (await aiConfig(prisma)).apiKey;
+    if (!key) return { error: "Enter an API key first.", at: Date.now() };
+    const models = await listModels(key);
+    if (!models.length) return { error: "The key works, but no Gemini chat models are available to it.", at: Date.now() };
+    return { ok: true, models, at: Date.now() };
+  } catch (e) {
+    if (e instanceof RuleError || e instanceof ForbiddenError) return { error: e.message, at: Date.now() };
+    console.error(e);
+    return { error: "Could not check the key.", at: Date.now() };
+  }
+}
 
 export async function addRateAction(_: ActionState, fd: FormData) {
   const actor = await requireUser();

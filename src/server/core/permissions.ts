@@ -4,7 +4,7 @@
  * cancels a project / PO / invoice, or deactivates a user.
  */
 
-export type Module = "clients" | "projects" | "pos" | "invoices" | "users" | "reports" | "audit" | "settings";
+export type Module = "clients" | "projects" | "pos" | "invoices" | "users" | "reports" | "audit" | "settings" | "assistant";
 export type Action = "view" | "create" | "edit" | "delete" | "approve" | "payments" | "email" | "export" | "groups" | "administer";
 export type Perms = Partial<Record<Module, Action[]>>;
 
@@ -28,7 +28,8 @@ export const MODULES: { key: Module; label: string; actions: { key: Action; labe
   ] },
   { key: "reports", label: "Reports", actions: [{ key: "view" }, { key: "export" }] },
   { key: "audit", label: "Audit log", actions: [{ key: "view" }, { key: "export" }] },
-  { key: "settings", label: "Settings", actions: [{ key: "administer", label: "Manage settings", hint: "Company, template, rates, notifications" }] },
+  { key: "settings", label: "Settings", actions: [{ key: "administer", label: "Manage settings", hint: "Company, template, rates, notifications, AI key" }] },
+  { key: "assistant", label: "AI assistant", actions: [{ key: "view", hint: "Ask questions; answers only use areas the user can view" }] },
 ];
 
 export const ACTION_LABELS: Record<Action, string> = {

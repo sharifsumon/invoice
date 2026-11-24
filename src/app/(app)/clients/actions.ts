@@ -30,13 +30,16 @@ export async function createClientAction(_: ActionState, fd: FormData): Promise<
   return res;
 }
 
+/** Saves, then closes the edit form with a confirmation. */
 export async function updateClientAction(id: string, _: ActionState, fd: FormData) {
   const actor = await requireUser();
-  return runAction(async () => {
+  const res = await runAction(async () => {
     await updateClient(prisma, actor, id, clientFields(fd));
-    revalidatePath(`/clients/${id}`);
     return "Client updated";
   });
+  if (!res?.ok) return res;
+  revalidatePath(`/clients/${id}`);
+  redirect(`/clients/${id}?flash=Client+updated`);
 }
 
 export async function archiveClientAction(id: string, archived: boolean, _: ActionState, _fd: FormData) {

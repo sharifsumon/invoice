@@ -2,6 +2,7 @@ import { ClientStatus } from "@/generated/prisma/enums";
 import type { Client } from "@/generated/prisma/client";
 import { ActionForm, SubmitButton, type ActionState } from "@/components/forms";
 import { Field, Input, labelize, Select, Textarea } from "@/components/ui";
+import { COUNTRIES } from "@/lib/countries";
 
 /** Browser-side hint matching the server rule: optional +, then digits/spaces/()-. */
 export const PHONE_PATTERN = "\\+?[0-9\\s().\\-]{6,}";
@@ -20,7 +21,14 @@ export function ClientForm({ action, client, withContact, submitLabel = "Save" }
             {Object.values(ClientStatus).map((s) => <option key={s} value={s}>{labelize(s)}</option>)}
           </Select>
         </Field>
-        <Field label="Country *"><Input name="country" required defaultValue={client?.country ?? ""} /></Field>
+        <Field label="Country *">
+          <Select name="country" required defaultValue={client?.country ?? ""}>
+            <option value="" disabled>Select a country…</option>
+            {/* Keep an older free-text value selectable until it is changed */}
+            {client?.country && !COUNTRIES.includes(client.country) && <option value={client.country}>{client.country}</option>}
+            {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        </Field>
         <Field label="Industry"><Input name="industry" defaultValue={client?.industry ?? ""} /></Field>
         <Field label="General email"><Input name="email" type="email" defaultValue={client?.email ?? ""} /></Field>
         <Field label="General phone"><Input name="phone" defaultValue={client?.phone ?? ""} /></Field>

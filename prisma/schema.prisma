@@ -483,6 +483,9 @@ model CompanySettings {
   projectCodePrefix  String  @default("PRJ-")
   logoPath           String?
   logoMime           String?
+  /// AI assistant: Google (Gemini) API key, AES-256-GCM encrypted with a key derived from AUTH_SECRET.
+  aiApiKeyEnc        String?
+  aiModel            String  @default("gemini-flash-latest")
   updatedAt          DateTime @updatedAt
 }
 

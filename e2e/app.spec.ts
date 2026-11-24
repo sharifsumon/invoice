@@ -46,15 +46,26 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   // Required fields are enforced by the browser before anything is sent
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page).toHaveURL(/\/clients\/new$/);
-  expect(await page.getByLabel("Country *").evaluate((el: HTMLInputElement) => el.validity.valueMissing)).toBe(true);
+  expect(await page.getByLabel("Country *").evaluate((el: HTMLSelectElement) => el.validity.valueMissing)).toBe(true);
+  expect(await page.getByLabel("Country *").locator("option").count()).toBeGreaterThan(240); // full country list
   await page.getByLabel("Status *").selectOption("ONBOARDED");
-  await page.getByLabel("Country *").fill("Nigeria");
+  await page.getByLabel("Country *").selectOption("Nigeria");
   await page.getByLabel("First name *").fill("Olu");
   await page.getByLabel("Last name *").fill("Ade");
   await page.getByLabel("Email *").fill("olu@orbit.example");
   await page.getByLabel("Phone *").fill("+234 1 280 0000");
   await page.getByRole("button", { name: "Create client" }).click();
   await expect(page.getByRole("heading", { name: /Orbit Labs/ })).toBeVisible();
+
+  // Edit details: a button on the Details card opens the form; saving closes it
+  await expect(page.getByLabel("Company / client name *")).toHaveCount(0);
+  await page.getByRole("link", { name: "Edit details" }).click();
+  await expect(page.getByLabel("Country *")).toHaveValue("Nigeria");
+  await page.getByLabel("Country *").selectOption("Ghana");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Client updated")).toBeVisible();
+  await expect(page.getByText("Ghana")).toBeVisible();
+  await expect(page.getByLabel("Company / client name *")).toHaveCount(0);
 
   // Project starts as Draft → status dropdown → In Progress; then edit it
   await page.getByRole("link", { name: "New project" }).click();
@@ -190,6 +201,17 @@ test("user groups: create a group with chosen permissions", async ({ page }) => 
   await expect(page.getByText("User updated")).toBeVisible();
   await expect(page.getByRole("cell", { name: "Sally Seller", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+});
+
+test("AI assistant: not set up → points to Settings, where the key is entered", async ({ page }) => {
+  await login(page, E2E_ADMIN);
+  await page.getByRole("link", { name: "AI assistant" }).click();
+  await expect(page.getByText("isn't set up yet")).toBeVisible();
+  await page.getByRole("link", { name: "Add the API key in Settings" }).click();
+  await expect(page.getByText("No key saved yet")).toBeVisible();
+  await expect(page.getByLabel("Google API key")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Test key" })).toBeVisible();
+  // (Saving is checked against Google, so it's covered by unit tests with a fake Google instead of here.)
 });
 
 test("two-factor sign-in", async ({ page, context }) => {

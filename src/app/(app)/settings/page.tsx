@@ -8,6 +8,8 @@ import { getInvoiceTemplate, MERGE_FIELDS } from "@/server/core/email";
 import { NotificationEvent } from "@/generated/prisma/enums";
 import { EVENT_LABELS, recipientGroups } from "@/server/core/notifications";
 import { Table, Td } from "@/components/ui";
+import { aiConfig, listModels } from "@/server/core/ai";
+import { AiSettings } from "./ai-settings";
 import {
   addRateAction, deleteRateAction, removeLogoAction, saveCompanyAction, saveEmailTemplateAction, saveNotificationMatrixAction,
   saveTemplateAction, uploadLogoAction,
@@ -23,6 +25,9 @@ export default async function SettingsPage() {
   const rates = await prisma.exchangeRate.findMany({ orderBy: [{ effectiveDate: "desc" }, { fromCurrency: "asc" }], take: 100 });
   const groups = await prisma.userGroup.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
   const matrix = await Promise.all(Object.values(NotificationEvent).map(async (e) => ({ event: e, groupIds: await recipientGroups(prisma, e) })));
+  const ai = await aiConfig(prisma);
+  // With a saved key, load the models it can use so the model is picked from a list (no typos / retired names)
+  const aiModels = ai.apiKey ? await listModels(ai.apiKey).catch(() => null) : null;
   const year = new Date().getFullYear();
   const sample = `${t.numberPrefix}${t.numberReset === "YEARLY" ? `${year}-` : ""}${"1".padStart(t.numberPadding, "0")}`;
 
@@ -53,6 +58,12 @@ export default async function SettingsPage() {
               <SubmitButton>Save company profile</SubmitButton>
             </ActionForm>
           </Card>
+
+          <div id="ai" className="scroll-mt-24">
+            <Card title="AI assistant">
+              <AiSettings hasKey={!!ai.apiKey} keySource={ai.source} model={ai.model} initialModels={aiModels} />
+            </Card>
+          </div>
 
           <Card title="Invoice template & numbering">
             <ActionForm action={saveTemplateAction}>

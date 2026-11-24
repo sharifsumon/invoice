@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Building2, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, ShieldCheck, Users, type LucideIcon,
+  BarChart3, Building2, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, ShieldCheck, Sparkles, Users, type LucideIcon,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 
 export const NAV_ICONS = {
-  dashboard: LayoutDashboard, clients: Building2, projects: FolderKanban, pos: FileText, invoices: ReceiptText,
+  dashboard: LayoutDashboard, assistant: Sparkles, clients: Building2, projects: FolderKanban, pos: FileText, invoices: ReceiptText,
   reports: BarChart3, settings: Settings, users: Users, groups: ShieldCheck, audit: ScrollText,
 } satisfies Record<string, LucideIcon>;
 export type NavIcon = keyof typeof NAV_ICONS;
