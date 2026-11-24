@@ -5,7 +5,7 @@ import { METHOD_LABELS } from "@/server/core/payments";
 import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { outstandingOf } from "@/server/core/money";
-import { PaymentSubmit } from "./payment-submit";
+import { PaymentAmount } from "./payment-submit";
 import { Money } from "@/components/money";
 import { Badge, Card, Field, fmtDate, Input, Select, Table, Td, Textarea } from "@/components/ui";
 import { recordPaymentAction, reversePaymentAction, sendEmailAction } from "../actions";
@@ -43,9 +43,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance 
           <summary className="cursor-pointer text-sm font-medium text-brand-700">+ Record payment</summary>
           <ActionForm action={recordPaymentAction.bind(null, inv.id)} resetOnSuccess className="mt-3 space-y-4">
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={`Amount (${inv.currency}) *`} hint={`Outstanding: ${outstanding.toFixed(2)}`}>
-                <Input name="amount" required inputMode="decimal" defaultValue={outstanding.toFixed(2)} />
-              </Field>
+              <PaymentAmount outstanding={Number(outstanding)} currency={inv.currency} canBalance={!!canBalance} />
               <Field label="Payment date *"><Input name="paymentDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} max={new Date().toISOString().slice(0, 10)} /></Field>
               <Field label="Method *">
                 <Select name="method" defaultValue={PaymentMethod.BANK_TRANSFER}>
@@ -57,7 +55,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance 
               <Field label="Receipt (PDF, PNG, JPEG ≤ 5 MB)"><input type="file" name="receipt" accept="application/pdf,image/png,image/jpeg" className="block w-full pt-2 text-sm" /></Field>
               <Field label="Notes" className="sm:col-span-3"><Textarea name="notes" rows={2} /></Field>
             </div>
-            <PaymentSubmit outstanding={Number(outstanding)} currency={inv.currency} canBalance={!!canBalance} />
+            <SubmitButton>Record payment</SubmitButton>
           </ActionForm>
         </details>
       )}

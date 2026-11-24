@@ -27,9 +27,10 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
   return (
     <>
       <PageHeader title="Invoices" subtitle={`${invoices.length} shown`}
-        actions={canExport && <>
-          <a href={`/api/invoices/export?${qs}`} className={buttonClass("secondary")}>Export CSV</a>
-          <a href={`/api/invoices/export?${qs}${qs ? "&" : ""}format=xlsx`} className={buttonClass("secondary")}>Export Excel</a>
+        actions={<>
+          {can(user.role, "invoices", "create") && <Link href="/invoices/new" className={buttonClass("primary")}>New invoice</Link>}
+          {canExport && <><a href={`/api/invoices/export?${qs}`} className={buttonClass("secondary")}>Export CSV</a>
+          <a href={`/api/invoices/export?${qs}${qs ? "&" : ""}format=xlsx`} className={buttonClass("secondary")}>Export Excel</a></>}
         </>} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3">

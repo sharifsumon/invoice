@@ -28,9 +28,10 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
   });
   // Valid invoiced per PO in one query
   const sums = await prisma.invoice.groupBy({
-    by: ["poId"], where: { poId: { in: pos.map((p) => p.id) }, status: { not: "CANCELLED" } },
+    by: ["poId"], where: { poId: { in: pos.map((p) => p.id) }, status: { not: "CANCELLED" }, kind: { not: "BALANCE" } },
     _sum: { subtotal: true, discount: true },
   });
+  const canInvoice = can(user.role, "invoices", "create");
   const invoiced = new Map(sums.map((s) => [s.poId, s._sum.subtotal!.minus(s._sum.discount!)]));
 
   return (
@@ -46,7 +47,7 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
           </Select>
           <button className={buttonClass("secondary")}>Filter</button>
         </form>
-        <Table head={["PO", "Client", "Project", "Date", "Status", "PO value", "Invoiced", "Remaining", "Milestones"]} empty="No purchase orders match.">
+        <Table head={["PO", "Client", "Project", "Date", "Status", "PO value", "Invoiced", "Remaining", "Milestones", ""]} empty="No purchase orders match.">
           {pos.map((p) => {
             const inv = invoiced.get(p.id);
             return (
@@ -60,6 +61,9 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
                 <Td>{inv ? <Money v={inv} cur={p.currency} /> : "—"}</Td>
                 <Td><Money v={inv ? p.value.minus(inv) : p.value} cur={p.currency} /></Td>
                 <Td className="tabular">{p._count.milestones || "—"}</Td>
+                <Td>{canInvoice && p.status === "APPROVED" && (inv ? p.value.minus(inv).gt(0) : true) && (
+                  <Link href={`/pos/${p.id}#new-invoice`} className="rounded-lg bg-brand-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-600">Create invoice</Link>
+                )}</Td>
               </tr>
             );
           })}

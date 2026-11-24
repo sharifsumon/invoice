@@ -11,7 +11,7 @@ import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { LineEditor } from "@/components/line-editor";
 import { Money } from "@/components/money";
-import { Badge, Card, DL, Flash, Field, fmtDate, Input, isPoApproved, labelize, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
+import { Badge, buttonClass, Card, DL, Flash, Field, fmtDate, Input, isPoApproved, labelize, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import {
   createManualInvoiceAction, removeAttachmentAction, retryGenerationAction, transitionPOAction, updatePOAction, uploadAttachmentAction,
 } from "../actions";
@@ -66,6 +66,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
         back={{ href: "/pos", label: "Purchase Orders" }}
         title={<span className="flex items-center gap-3">PO {po.poNumber} <StatusBadge status={po.status} /></span>}
         subtitle={<><Link className="hover:underline" href={`/clients/${po.clientId}`}>{po.client.name}</Link> · <Link className="hover:underline" href={`/projects/${po.projectId}`}>{po.project.code} — {po.project.name}</Link></>}
+        actions={canInvoice && bal.remaining.gt(0) && <a href="#new-invoice" className={buttonClass("primary")}>Create invoice</a>}
       />
 
       {transitions.length > 0 && (
@@ -165,7 +166,8 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
           </Card>
 
           {canInvoice && (
-            <Card title="Create manual invoice">
+            <div id="new-invoice" className="scroll-mt-24">
+            <Card title="Create invoice">
               {bal.remaining.lte(0) ? (
                 <p className="text-sm text-slate-500">This PO is fully invoiced. A new invoice is only possible after an existing one is cancelled.</p>
               ) : (
@@ -188,6 +190,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                 </ActionForm>
               )}
             </Card>
+            </div>
           )}
 
           {editable && (

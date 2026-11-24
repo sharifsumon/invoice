@@ -109,11 +109,12 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
 
   // Overpayment rejected, partial payment accepted
-  await page.getByLabel(/Amount \(USD\)/).fill("6000");
+  await page.getByLabel(/Amount received \(USD\)/).fill("6000");
   await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "exceeds the outstanding balance" })).toBeVisible();
-  await page.getByLabel(/Amount \(USD\)/).fill("2000");
-  await page.getByRole("button", { name: "Record payment" }).click(); // the "create balance invoice?" prompt is accepted
+  await page.getByLabel(/Amount received \(USD\)/).fill("2000");
+  await expect(page.getByText("Create a new invoice for the remaining USD 3000.00")).toBeVisible(); // ticked by default
+  await page.getByRole("button", { name: "Record payment" }).click();
   await expect(page.getByText(/Balance invoice INV-\d{4}-\d{5} created for 3000\.00 USD/)).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Partially Paid");
 
