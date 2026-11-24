@@ -11,7 +11,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
  * Success banner after a redirecting action (`?flash=...`). Rendered as escaped text, and only for messages
  * our own actions produce, so a crafted link can't display arbitrary text on a trusted page.
  */
-const FLASH_ALLOWED = /^(PO (approved|moved to) |Project moved to |Project updated|Finalized as INV|Invoice cancelled)[\w\s—.,()%:-]*$/;
+const FLASH_ALLOWED = /^(PO (approved|moved to) |Project moved to |Project updated|Payment recorded\. Balance invoice |Finalized as INV|Invoice cancelled)[\w\s—.,()%:-]*$/;
 export function Flash({ message }: { message?: string | string[] }) {
   const m = typeof message === "string" ? message.slice(0, 300) : "";
   if (!m || !FLASH_ALLOWED.test(m)) return null;

@@ -230,6 +230,7 @@ model PaymentMilestone {
 enum InvoiceKind {
   MILESTONE
   MANUAL
+  BALANCE // carries forward the unpaid balance of a part-paid invoice (not new billing)
 }
 
 /// Lifecycle + payment state. Overdue is derived (dueDate < today AND outstanding > 0), never stored.
@@ -254,6 +255,13 @@ model Invoice {
   po            PurchaseOrder @relation(fields: [poId], references: [id])
   milestoneId   String?
   milestone     PaymentMilestone? @relation(fields: [milestoneId], references: [id])
+
+  /// BALANCE invoices: the part-paid invoice whose outstanding balance this one carries forward.
+  balanceOfId     String?
+  balanceOf       Invoice? @relation("BalanceCarry", fields: [balanceOfId], references: [id])
+  balanceInvoices Invoice[] @relation("BalanceCarry")
+  /// On the original: the amount moved to its balance invoice (no longer outstanding here).
+  balanceMoved    Decimal  @default(0) @db.Decimal(18, 2)
 
   invoiceDate DateTime? @db.Date
   dueDate     DateTime? @db.Date

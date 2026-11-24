@@ -2,6 +2,7 @@ import { InvoiceStatus, NotificationEvent, Role } from "@/generated/prisma/enums
 import { addDays, audit, today, type Actor, type Db } from "./common";
 import { formatMoney } from "./money";
 import { can, ForbiddenError } from "./permissions";
+import { outstandingOf } from "./money";
 
 /** Default recipients per event (BRD §5.9). Admins can change these in Settings → Notifications. */
 export const DEFAULT_RECIPIENTS: Record<NotificationEvent, Role[]> = {
@@ -55,13 +56,13 @@ export async function notify(db: Db, event: NotificationEvent, n: { title: strin
 export async function scanDueNotifications(db: Db, on: Date = today()) {
   const open = [InvoiceStatus.UNPAID, InvoiceStatus.PARTIALLY_PAID];
   const invs = await db.invoice.findMany({
-    where: { status: { in: open }, dueDate: { not: null, lte: addDays(on, DUE_SOON_DAYS) } },
+    where: { status: { in: open }, balanceMoved: 0, dueDate: { not: null, lte: addDays(on, DUE_SOON_DAYS) } }, // moved balances are due on their balance invoice
     include: { client: { select: { name: true } } },
   });
   let created = 0;
   for (const i of invs) {
     const due = i.dueDate!.toISOString().slice(0, 10);
-    const bal = formatMoney(i.total.minus(i.amountPaid), i.currency);
+    const bal = formatMoney(outstandingOf(i), i.currency);
     if (i.dueDate! < on) {
       created += await notify(db, NotificationEvent.INVOICE_OVERDUE, {
         title: `${i.invoiceNumber} is overdue`, body: `${i.client.name} — ${bal} was due ${due}.`, link: `/invoices/${i.id}`, dedupeKey: `${i.id}:${due}`,

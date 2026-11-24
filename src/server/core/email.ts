@@ -8,6 +8,7 @@ import { formatMoney } from "./money";
 import { can, ForbiddenError, RuleError } from "./permissions";
 import type { InvoiceSnapshot } from "./pdf";
 import { loadFile, saveFile } from "./storage";
+import { outstandingOf } from "./money";
 
 export const DEFAULT_INVOICE_TEMPLATE = {
   subject: "Invoice {{invoice_number}} – {{company_name}}",
@@ -125,7 +126,7 @@ export async function composeInvoiceEmail(db: Db, invoiceId: string) {
     due_date: fmtDate(s.invoice.dueDate),
     currency: inv.currency,
     invoice_amount: formatMoney(inv.total, "").trim(),
-    balance_due: formatMoney(inv.total.minus(inv.amountPaid), "").trim(),
+    balance_due: formatMoney(outstandingOf(inv), "").trim(),
   };
   return {
     to: [primary?.email ?? inv.client.email].filter(Boolean) as string[],

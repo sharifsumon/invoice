@@ -82,3 +82,10 @@ export function amountInWords(v: Prisma.Decimal, currency: string): string {
   const cents = Number(f);
   return `${currency} ${intToWords(BigInt(i))}${cents ? ` and ${f}/100` : ""} Only`;
 }
+
+export interface OutstandingParts { total: Prisma.Decimal; amountPaid: Prisma.Decimal; balanceMoved?: Prisma.Decimal | null }
+/** What is still owed on an invoice: total − paid − any balance carried forward to a balance invoice. */
+export function outstandingOf(inv: OutstandingParts): Prisma.Decimal {
+  const v = inv.total.minus(inv.amountPaid).minus(inv.balanceMoved ?? 0);
+  return v.lt(0) ? new D(0) : v;
+}

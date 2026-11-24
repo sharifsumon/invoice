@@ -11,6 +11,7 @@ import { Money, MultiMoney } from "@/components/money";
 import { Badge, Card, DL, Field, fmtDate, Input, labelize, LinkButton, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import { ClientForm, PHONE_PATTERN } from "../client-form";
 import { addActivityAction, archiveClientAction, deleteContactAction, saveContactAction, updateClientAction } from "../actions";
+import { outstandingOf } from "@/server/core/money";
 
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
   const user = await requirePermission("clients");
@@ -28,8 +29,8 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
   if (!client) notFound();
   const canEdit = can(user.role, "clients", "edit");
   const valid = client.invoices.filter((i) => i.status !== "CANCELLED" && i.status !== "DRAFT");
-  const outstanding = groupSum(valid, (i) => i.currency, (i) => i.total.minus(i.amountPaid));
-  const invoiced = groupSum(valid, (i) => i.currency, (i) => i.total);
+  const outstanding = groupSum(valid, (i) => i.currency, (i) => outstandingOf(i));
+  const invoiced = groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total);
   const paid = groupSum(valid, (i) => i.currency, (i) => i.amountPaid);
   const bv = groupSum(client.projects.filter((p) => p.approved), (p) => p.currency, (p) => p.value);
 
@@ -106,7 +107,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
                   <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                   <Td>{fmtDate(i.dueDate)}</Td>
                   <Td><Money v={i.total} cur={i.currency} /></Td>
-                  <Td>{i.status === "CANCELLED" ? "—" : <Money v={i.total.minus(i.amountPaid)} cur={i.currency} />}</Td>
+                  <Td>{i.status === "CANCELLED" ? "—" : <Money v={outstandingOf(i)} cur={i.currency} />}</Td>
                 </tr>
               ))}
             </Table>

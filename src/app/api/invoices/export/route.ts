@@ -5,6 +5,7 @@ import { can } from "@/server/core/permissions";
 import { isOverdue } from "@/server/core/invoices";
 import { prisma } from "@/server/db";
 import { filtersToWhere, invoiceListInclude, readFilters } from "@/server/invoice-list";
+import { outstandingOf } from "@/server/core/money";
 
 /** Invoice register export (CSV or XLSX), honoring the same filters as the list page. */
 export async function GET(req: Request) {
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
   const rows = invoices.map((i) => [
     i.invoiceNumber ?? "DRAFT", i.status, isOverdue(i) ? "YES" : "", i.kind, i.client.name, i.project.code, i.project.name, i.po.poNumber,
     d(i.invoiceDate), d(i.dueDate), i.currency, i.subtotal.toFixed(2), i.discount.toFixed(2), i.taxAmount.toFixed(2), i.total.toFixed(2),
-    i.amountPaid.toFixed(2), i.status === "CANCELLED" ? "0.00" : i.total.minus(i.amountPaid).toFixed(2), String(i.version),
+    i.amountPaid.toFixed(2), i.status === "CANCELLED" ? "0.00" : outstandingOf(i).toFixed(2), String(i.version),
   ]);
   await prisma.auditLog.create({
     data: { actorId: user.id, action: "invoice.exported", entityType: "Invoice", entityId: "*", after: { format: sp.format ?? "csv", rows: rows.length, filters: sp } },

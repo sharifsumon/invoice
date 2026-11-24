@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/server/auth";
 import { can } from "@/server/core/permissions";
 import { isOverdue } from "@/server/core/invoices";
+import { dec, outstandingOf } from "@/server/core/money";
 import { PO_TRANSITIONS, poBalance } from "@/server/core/pos";
 import { getSettings } from "@/server/core/settings";
 import { prisma } from "@/server/db";
@@ -10,7 +11,7 @@ import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { LineEditor } from "@/components/line-editor";
 import { Money } from "@/components/money";
 import { Badge, buttonClass, Card, DL, Flash, Field, fmtDate, Input, isoDate, isPoApproved, labelize, PageHeader, StatusBadge, Table, Td, Textarea } from "@/components/ui";
-import { approvePendingInvoiceAction, cancelAction, finalizeAction, reissueAction, updateDraftAction } from "../actions";
+import { approvePendingInvoiceAction, cancelAction, createBalanceInvoiceAction, finalizeAction, reissueAction, updateDraftAction } from "../actions";
 import { PrintButton } from "./print-button";
 import { EmailCard, PaymentsCard } from "./payments-email";
 
@@ -22,6 +23,8 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
     where: { id },
     include: {
       client: true, project: true, po: true, milestone: true,
+      balanceOf: { select: { id: true, invoiceNumber: true } },
+      balanceInvoices: { where: { status: { not: "CANCELLED" } }, select: { id: true, invoiceNumber: true, total: true } },
       lineItems: { orderBy: { sequence: "asc" } },
       documents: { orderBy: { version: "desc" } },
       createdBy: { select: { name: true } }, finalizedBy: { select: { name: true } }, cancelledBy: { select: { name: true } },
@@ -44,6 +47,10 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const canApprovePO = pendingApproval && PO_TRANSITIONS[inv.po.status].includes("APPROVED") && can(user.role, "pos", "approve");
   const siblings = pendingApproval ? await prisma.invoice.count({ where: { poId: inv.poId, status: "DRAFT", kind: "MILESTONE" } }) : 0;
   const canCancel = !isCancelled && can(user.role, "invoices", "cancel") && inv.amountPaid.eq(0);
+  const outstanding = isCancelled ? dec(0) : outstandingOf(inv);
+  const carriedTo = inv.balanceInvoices[0];
+  const canBalance = can(user.role, "invoices", "create") && can(user.role, "invoices", "approve");
+  const canCreateBalance = canBalance && inv.status === "PARTIALLY_PAID" && outstanding.gt(0) && !carriedTo;
   const pdfUrl = `/api/invoices/${inv.id}/pdf`;
   const ownAllocation = isCancelled ? 0 : inv.subtotal.minus(inv.discount);
   const remainingForDraft = bal.remaining.plus(ownAllocation);
@@ -70,6 +77,26 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
         </>}
       />
 
+      {inv.kind === "BALANCE" && inv.balanceOf && (
+        <div className="mb-6 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900">
+          Balance invoice: carries forward the unpaid balance of{" "}
+          <Link href={`/invoices/${inv.balanceOf.id}`} className="font-semibold underline underline-offset-2">{inv.balanceOf.invoiceNumber}</Link>.
+          It is not new billing against the PO.
+        </div>
+      )}
+      {carriedTo && (
+        <div className="mb-6 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900">
+          The outstanding balance ({inv.currency} {inv.balanceMoved.toFixed(2)}) was moved to{" "}
+          <Link href={`/invoices/${carriedTo.id}`} className="font-semibold underline underline-offset-2">{carriedTo.invoiceNumber}</Link>. Nothing more is due on this invoice.
+        </div>
+      )}
+      {canCreateBalance && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
+          <p className="min-w-0 flex-1"><b>Partially paid.</b> {inv.currency} {outstanding.toFixed(2)} is still outstanding. You can keep collecting it here, or move it to a new invoice.</p>
+          <ActionButton action={createBalanceInvoiceAction.bind(null, inv.id)} label="Create balance invoice" variant="primary" size="md"
+            confirm={`Create a new invoice for the outstanding ${inv.currency} ${outstanding.toFixed(2)}? This invoice will then show nothing more due.`} />
+        </div>
+      )}
       {pendingApproval && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
           <p className="min-w-0 flex-1">
@@ -143,13 +170,15 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
                 {inv.taxAmount.gt(0) && <Row k={`${template.taxLabel} ${inv.taxRate.toDecimalPlaces(2).toString()}%`} v={<Money v={inv.taxAmount} cur={inv.currency} />} />}
                 <Row k="Total" v={<Money v={inv.total} cur={inv.currency} className="font-semibold" />} />
                 <Row k="Paid" v={<Money v={inv.amountPaid} cur={inv.currency} />} />
-                <Row k="Balance due" v={<Money v={isCancelled ? 0 : inv.total.minus(inv.amountPaid)} cur={inv.currency} className="font-semibold" />} />
+                {inv.balanceMoved.gt(0) && <Row k={`Moved to ${carriedTo?.invoiceNumber ?? "balance invoice"}`} v={<Money v={inv.balanceMoved.negated()} cur={inv.currency} />} />}
+                <Row k="Balance due" v={<Money v={outstanding} cur={inv.currency} className="font-semibold" />} />
               </div>
             </Card>
           )}
 
           {!isDraft && !isCancelled && (
-            <PaymentsCard inv={inv} payments={inv.payments} canRecord={can(user.role, "invoices", "edit")} canReverse={can(user.role, "invoices", "cancel")} />
+            <PaymentsCard inv={inv} payments={inv.payments} canRecord={can(user.role, "invoices", "edit")} canReverse={can(user.role, "invoices", "cancel")}
+              canBalance={canBalance && !carriedTo} />
           )}
           {isCancelled && inv.payments.length > 0 && (
             <PaymentsCard inv={inv} payments={inv.payments} canRecord={false} canReverse={false} />

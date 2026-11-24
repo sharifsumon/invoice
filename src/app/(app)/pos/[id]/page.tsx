@@ -16,6 +16,8 @@ import {
   createManualInvoiceAction, removeAttachmentAction, retryGenerationAction, transitionPOAction, updatePOAction, uploadAttachmentAction,
 } from "../actions";
 import { POForm } from "../po-form";
+import { createBalanceInvoiceAction } from "../../invoices/actions";
+import { outstandingOf } from "@/server/core/money";
 
 const LABELS: Partial<Record<POStatus, string>> = {
   SUBMITTED: "Submit for approval", APPROVED: "Approve", REJECTED: "Reject", ON_HOLD: "Put on hold",
@@ -31,7 +33,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
     include: {
       client: true, project: true, approvedBy: { select: { name: true } },
       milestones: { orderBy: { sequence: "asc" }, include: { invoices: { orderBy: { createdAt: "desc" } } } },
-      invoices: { orderBy: { createdAt: "desc" } },
+      invoices: { orderBy: { createdAt: "desc" }, include: { balanceInvoices: { where: { status: { not: "CANCELLED" } }, select: { id: true, invoiceNumber: true } } } },
     },
   });
   if (!po) notFound();
@@ -54,6 +56,8 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
   const missingInvoices = (po.status === "APPROVED" || po.status === "SUBMITTED") && planOk && po.milestones.some((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
   const openMilestones = po.milestones.filter((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
   const canInvoice = po.status === "APPROVED" && can(user.role, "invoices", "create");
+  const canBalance = can(user.role, "invoices", "create") && can(user.role, "invoices", "approve");
+  const partPaid = po.invoices.filter((i) => i.status === "PARTIALLY_PAID" && !i.balanceInvoices.length && outstandingOf(i).gt(0));
 
   return (
     <>
@@ -123,8 +127,27 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
             )}
           </Card>
 
+          {partPaid.length > 0 && (
+            <Card title="Outstanding on part-paid invoices">
+              <ul className="space-y-3">
+                {partPaid.map((i) => (
+                  <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
+                    <span>
+                      <Link href={`/invoices/${i.id}`} className="font-semibold underline underline-offset-2">{i.invoiceNumber}</Link>{" "}
+                      is partially paid: <b><Money v={outstandingOf(i)} cur={i.currency} /></b> still outstanding.
+                    </span>
+                    {canBalance && (
+                      <ActionButton action={createBalanceInvoiceAction.bind(null, i.id)} label="Create balance invoice" variant="primary"
+                        confirm={`Create a new invoice for the outstanding ${i.currency} ${outstandingOf(i).toFixed(2)} of ${i.invoiceNumber}?`} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           <Card title="Invoices on this PO">
-            <Table head={["Invoice", "Type", "Status", "Due", "Amount", "Total"]} empty="No invoices yet.">
+            <Table head={["Invoice", "Type", "Status", "Due", "Amount", "Total", "Outstanding"]} empty="No invoices yet.">
               {po.invoices.map((i) => (
                 <tr key={i.id} className={i.status === "CANCELLED" ? "opacity-60" : ""}>
                   <Td><Link href={`/invoices/${i.id}`} className="text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>{i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}</Td>
@@ -133,6 +156,9 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                   <Td>{fmtDate(i.dueDate)}</Td>
                   <Td><Money v={i.subtotal.minus(i.discount)} cur={i.currency} /></Td>
                   <Td><Money v={i.total} cur={i.currency} /></Td>
+                  <Td>{i.status === "CANCELLED" || i.status === "DRAFT" ? "—" : i.balanceInvoices[0]
+                    ? <span className="text-xs text-slate-500">Moved to <Link href={`/invoices/${i.balanceInvoices[0].id}`} className="text-brand-700 hover:underline">{i.balanceInvoices[0].invoiceNumber}</Link></span>
+                    : <Money v={outstandingOf(i)} cur={i.currency} />}</Td>
                 </tr>
               ))}
             </Table>

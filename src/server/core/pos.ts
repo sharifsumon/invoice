@@ -309,25 +309,32 @@ export async function generateMilestoneInvoices(db: Db, actor: Actor, poId: stri
 /** BRD §5.4: PO value, valid invoiced, paid, outstanding and remaining invoiceable — shown separately. */
 export async function poBalance(db: Db | Tx, poId: string) {
   const po = await db.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { value: true, currency: true } });
+  // Balance invoices re-bill money already invoiced on their original, so they never count as new billing.
   const agg = await db.invoice.aggregate({
-    where: { poId, status: { not: InvoiceStatus.CANCELLED } },
-    _sum: { subtotal: true, discount: true, amountPaid: true, total: true },
+    where: { poId, status: { not: InvoiceStatus.CANCELLED }, kind: { not: InvoiceKind.BALANCE } },
+    _sum: { subtotal: true, discount: true, total: true },
   });
+  const paidAgg = await db.invoice.aggregate({ where: { poId, status: { not: InvoiceStatus.CANCELLED } }, _sum: { amountPaid: true } });
   // Receivables only exist once an invoice is issued (drafts still reserve PO allocation).
   const issued = await db.invoice.aggregate({
     where: { poId, status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] } },
-    _sum: { total: true, amountPaid: true },
+    _sum: { total: true, amountPaid: true, balanceMoved: true },
+  });
+  const issuedOriginal = await db.invoice.aggregate({
+    where: { poId, status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] }, kind: { not: InvoiceKind.BALANCE } },
+    _sum: { total: true },
   });
   const invoiced = (agg._sum.subtotal ?? dec(0)).minus(agg._sum.discount ?? dec(0));
-  const paid = agg._sum.amountPaid ?? dec(0);
-  const billed = issued._sum.total ?? dec(0);
+  const paid = paidAgg._sum.amountPaid ?? dec(0);
+  const billed = issuedOriginal._sum.total ?? dec(0);
   return {
     currency: po.currency,
     value: po.value,
     invoiced,
     billedInclTax: billed,
     paid,
-    outstanding: billed.minus(issued._sum.amountPaid ?? dec(0)),
+    // Outstanding = everything issued − paid − balances moved to balance invoices (which are themselves issued).
+    outstanding: (issued._sum.total ?? dec(0)).minus(issued._sum.amountPaid ?? dec(0)).minus(issued._sum.balanceMoved ?? dec(0)),
     remaining: po.value.minus(invoiced),
   };
 }

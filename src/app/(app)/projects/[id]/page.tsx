@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import type { ProjectStatus } from "@/generated/prisma/enums";
 import { requirePermission } from "@/server/auth";
-import { dec } from "@/server/core/money";
+import { dec, outstandingOf } from "@/server/core/money";
 import { can } from "@/server/core/permissions";
 import { PROJECT_STATUSES, PROJECT_TRANSITIONS, transitionApproves } from "@/server/core/projects";
 import { getSettings } from "@/server/core/settings";
@@ -58,9 +58,9 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   const sum = <T extends { currency: string }>(rows: T[], val: (r: T) => ReturnType<typeof dec>) =>
     rows.filter((r) => r.currency === cur).reduce((s, r) => s.plus(val(r)), dec(0));
   const poValue = sum(approvedPOs, (p) => p.value);
-  const invoiced = sum(issued, (i) => i.total);
+  const invoiced = sum(issued.filter((i) => i.kind !== "BALANCE"), (i) => i.total); // balance invoices are not new billing
   const collected = sum(issued, (i) => i.amountPaid);
-  const outstanding = invoiced.minus(collected);
+  const outstanding = sum(issued, (i) => outstandingOf(i));
   const otherCur = [...approvedPOs, ...issued].some((r) => r.currency !== cur);
   const overdue = issued.filter((i) => isOverdue(i)).length;
 
@@ -239,7 +239,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
               {otherCur && (
                 <div className="text-xs text-slate-500">
                   <div className="mb-1 font-medium text-slate-600">All currencies (invoiced)</div>
-                  <MultiMoney rows={groupSum(issued, (i) => i.currency, (i) => i.total)} />
+                  <MultiMoney rows={groupSum(issued.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />
                 </div>
               )}
             </div>

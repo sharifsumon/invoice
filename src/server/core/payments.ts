@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { InvoiceStatus, PaymentMethod, PaymentState } from "@/generated/prisma/enums";
 import { audit, inTx, parseDate, today, type Actor, type Db } from "./common";
-import { dec, money } from "./money";
+import { dec, money, outstandingOf } from "./money";
 import { can, ForbiddenError, RuleError } from "./permissions";
 import { saveFile } from "./storage";
 
@@ -58,7 +58,7 @@ export async function recordPayment(db: Db, actor: Actor, invoiceId: string, raw
     if (invoice.status !== InvoiceStatus.UNPAID && invoice.status !== InvoiceStatus.PARTIALLY_PAID) {
       throw new RuleError(invoice.status === InvoiceStatus.PAID ? "This invoice is already fully paid" : "Payments can only be recorded on finalized, unpaid invoices");
     }
-    const outstanding = invoice.total.minus(invoice.amountPaid);
+    const outstanding = outstandingOf(invoice);
     if (amount.gt(outstanding)) {
       throw new RuleError(`Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${outstanding.toFixed(2)} ${invoice.currency}`);
     }
@@ -88,6 +88,8 @@ export async function reversePayment(db: Db, actor: Actor, paymentId: string, re
     await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" = ${pre.invoiceId} FOR UPDATE`;
     const p = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     if (p.state === PaymentState.REVERSED) throw new RuleError("Payment is already reversed");
+    const carried = await tx.invoice.findFirst({ where: { balanceOfId: p.invoiceId, status: { not: InvoiceStatus.CANCELLED } }, select: { invoiceNumber: true } });
+    if (carried) throw new RuleError(`The balance of this invoice was moved to ${carried.invoiceNumber ?? "a balance invoice"}. Cancel that invoice before reversing payments here.`);
     const before = await tx.invoice.findUniqueOrThrow({ where: { id: p.invoiceId }, select: { status: true, amountPaid: true } });
     await tx.payment.update({
       where: { id: paymentId },

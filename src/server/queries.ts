@@ -11,13 +11,13 @@ export async function invoiceTotalsByCurrency(where: Prisma.InvoiceWhereInput) {
   const rows = await prisma.invoice.groupBy({
     by: ["currency"],
     where: { ...where, status: { notIn: [InvoiceStatus.CANCELLED] } },
-    _sum: { total: true, amountPaid: true, subtotal: true, discount: true },
+    _sum: { total: true, amountPaid: true, subtotal: true, discount: true, balanceMoved: true },
     _count: true,
   });
   return rows.map((r) => {
     const total = r._sum.total ?? dec(0);
     const paid = r._sum.amountPaid ?? dec(0);
-    return { currency: r.currency, total, paid, outstanding: total.minus(paid), count: r._count };
+    return { currency: r.currency, total, paid, outstanding: total.minus(paid).minus(r._sum.balanceMoved ?? 0), count: r._count };
   });
 }
 

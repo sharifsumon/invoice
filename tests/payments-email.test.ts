@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { EmailStatus, InvoiceStatus, PaymentMethod, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { EmailStatus, InvoiceKind, InvoiceStatus, PaymentMethod, ProjectStatus, Role } from "@/generated/prisma/enums";
 import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject } from "@/server/core/projects";
-import { approvePO, createPO } from "@/server/core/pos";
-import { cancelInvoice, createManualInvoice, finalizeInvoice, isOverdue } from "@/server/core/invoices";
+import { approvePO, createPO, poBalance } from "@/server/core/pos";
+import { cancelInvoice, createBalanceInvoice, createManualInvoice, finalizeInvoice, isOverdue } from "@/server/core/invoices";
 import { recordPayment, reversePayment } from "@/server/core/payments";
 import { composeInvoiceEmail, merge, sendInvoiceEmail, type MailTransport } from "@/server/core/email";
-import { dec } from "@/server/core/money";
+import { dec, outstandingOf } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
 import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
 
@@ -36,6 +36,56 @@ async function issuedInvoice(amount = "1000", dueDate = "2026-01-31") {
 
 const pay = (amount: string, extra: Partial<{ paymentDate: string; reference: string }> = {}) => ({
   amount, paymentDate: extra.paymentDate ?? "2026-02-01", method: PaymentMethod.BANK_TRANSFER, reference: extra.reference,
+});
+
+describe("Balance invoices (carry the unpaid part forward)", () => {
+  it("part payment → balance invoice for the rest; nothing is outstanding or billed twice", async () => {
+    const inv = await issuedInvoice("3000"); // PO value 3000, fully invoiced
+    await recordPayment(db, finance, inv.id, pay("1000"));
+    const bal = await createBalanceInvoice(db, finance, inv.id);
+    expect(bal.kind).toBe(InvoiceKind.BALANCE);
+    expect(bal.status).toBe(InvoiceStatus.UNPAID);
+    expect(bal.invoiceNumber).toMatch(/^INV-/);
+    expect(bal.total.toString()).toBe("2000");
+    expect(bal.balanceOfId).toBe(inv.id);
+
+    const orig = await db.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(orig.status).toBe(InvoiceStatus.PARTIALLY_PAID);
+    expect(outstandingOf(orig).toString()).toBe("0");
+    const b = await poBalance(db, inv.poId);
+    expect(b.invoiced.toString()).toBe("3000");      // not new billing (PO cap untouched)
+    expect(b.outstanding.toString()).toBe("2000");   // counted once, on the balance invoice
+    expect(b.paid.toString()).toBe("1000");
+
+    // The original takes no more payments; its payments cannot be reversed while the balance invoice is live
+    await expect(recordPayment(db, finance, inv.id, pay("1"))).rejects.toThrow(/exceeds the outstanding balance of 0.00/);
+    const p1 = await db.payment.findFirstOrThrow({ where: { invoiceId: inv.id } });
+    await expect(reversePayment(db, admin, p1.id, "test")).rejects.toThrow(/moved to/);
+    await expect(createBalanceInvoice(db, finance, inv.id)).rejects.toThrow(/no outstanding balance|already exists/);
+
+    // Paying the balance invoice in full
+    await recordPayment(db, finance, bal.id, pay("2000"));
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: bal.id } })).status).toBe(InvoiceStatus.PAID);
+    expect((await poBalance(db, inv.poId)).outstanding.toString()).toBe("0");
+  });
+
+  it("cancelling the balance invoice puts the balance back on the original", async () => {
+    const inv = await issuedInvoice("900");
+    await recordPayment(db, finance, inv.id, pay("300"));
+    const bal = await createBalanceInvoice(db, finance, inv.id);
+    await cancelInvoice(db, finance, bal.id, "client will pay the original");
+    const orig = await db.invoice.findUniqueOrThrow({ where: { id: inv.id } });
+    expect(orig.balanceMoved.toString()).toBe("0");
+    expect(outstandingOf(orig).toString()).toBe("600");
+    await recordPayment(db, finance, inv.id, pay("600"));
+    expect((await db.invoice.findUniqueOrThrow({ where: { id: inv.id } })).status).toBe(InvoiceStatus.PAID);
+  });
+
+  it("only part-paid invoices can be carried forward", async () => {
+    const inv = await issuedInvoice("100");
+    await expect(createBalanceInvoice(db, finance, inv.id)).rejects.toThrow(/partially paid/);
+    await expect(createBalanceInvoice(db, viewer, inv.id)).rejects.toThrow(/permission/);
+  });
 });
 
 describe("Payments (BRD §5.6, BR-11)", () => {

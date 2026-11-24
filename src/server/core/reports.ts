@@ -4,6 +4,7 @@ import { today, type Db } from "./common";
 import { loadRateBook, type RateBook } from "./fx";
 import { dec, sum } from "./money";
 import { getSettings } from "./settings";
+import { outstandingOf } from "./money";
 
 // ───────────── Generic report model ─────────────
 
@@ -116,7 +117,7 @@ export const REPORTS: ReportDef[] = [
       const pos = await db.purchaseOrder.findMany({
         where: { clientId: f.clientId, currency: f.currency, status: f.status as POStatus | undefined, poDate: dateRange(f) },
         orderBy: { poDate: "desc" },
-        include: { client: { select: { name: true } }, project: { select: { code: true } }, invoices: { where: { status: { not: InvoiceStatus.CANCELLED } }, select: { subtotal: true, discount: true, amountPaid: true } } },
+        include: { client: { select: { name: true } }, project: { select: { code: true } }, invoices: { where: { status: { not: InvoiceStatus.CANCELLED } }, select: { subtotal: true, discount: true, amountPaid: true, kind: true } } },
       });
       return {
         columns: [
@@ -126,7 +127,7 @@ export const REPORTS: ReportDef[] = [
           { key: "paid", label: "Paid", kind: "money" }, { key: "remaining", label: "Remaining invoiceable", kind: "money" },
         ],
         rows: pos.map((p) => {
-          const invoiced = sum(p.invoices.map((i) => i.subtotal.minus(i.discount)));
+          const invoiced = sum(p.invoices.filter((i) => i.kind !== "BALANCE").map((i) => i.subtotal.minus(i.discount)));
           const approved = APPROVED_PO.includes(p.status);
           return {
             po: { text: p.poNumber, href: `/pos/${p.id}` }, client: p.client.name, project: p.project.code, date: p.poDate, status: p.status,
@@ -160,16 +161,19 @@ export const REPORTS: ReportDef[] = [
         ],
         rows: invs.map((i) => {
           const live = i.status !== "CANCELLED" && i.status !== "DRAFT";
-          const bal = i.total.minus(i.amountPaid);
+          const bal = outstandingOf(i);
           const on = i.invoiceDate ?? i.createdAt;
           return {
             invoice: { text: i.invoiceNumber ?? "Draft", href: `/invoices/${i.id}` }, client: i.client.name, project: i.project.code, po: i.po.poNumber,
             date: i.invoiceDate, due: i.dueDate, status: i.status,
             overdue: OPEN.includes(i.status) && i.dueDate && i.dueDate < t && bal.gt(0) ? "Yes" : "",
-            total: live ? m(i.total, i.currency, on) : null, paid: live ? m(i.amountPaid, i.currency, on) : null, balance: live ? m(bal, i.currency, on) : null,
+            total: live && i.kind !== "BALANCE" ? m(i.total, i.currency, on) : null, paid: live ? m(i.amountPaid, i.currency, on) : null, balance: live ? m(bal, i.currency, on) : null,
           };
         }),
-        notes: ["Totals exclude drafts and cancelled invoices (they are listed for reference only)."],
+        notes: [
+          "Totals exclude drafts and cancelled invoices (they are listed for reference only).",
+          "Balance invoices carry forward the unpaid part of an earlier invoice, so their Total is not counted again.",
+        ],
       };
     },
   },
@@ -204,7 +208,7 @@ export const REPORTS: ReportDef[] = [
     async run(db, f) {
       const t = today();
       const invs = await db.invoice.findMany({
-        where: { status: { in: OPEN }, clientId: f.clientId, currency: f.currency },
+        where: { status: { in: OPEN }, balanceMoved: 0, clientId: f.clientId, currency: f.currency },
         orderBy: { dueDate: "asc" }, include: { client: { select: { name: true } } },
       });
       const buckets = [["notDue", "Not due"], ["d30", "1–30"], ["d60", "31–60"], ["d90", "61–90"], ["d90p", "90+"]] as const;
@@ -218,7 +222,7 @@ export const REPORTS: ReportDef[] = [
           const days = i.dueDate ? Math.floor((+t - +i.dueDate) / 86_400_000) : 0;
           const b = days <= 0 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
           const row: Row = { invoice: { text: i.invoiceNumber ?? "—", href: `/invoices/${i.id}` }, client: i.client.name, due: i.dueDate, days: Math.max(0, days) };
-          buckets.forEach(([k], idx) => { row[k] = idx === b ? m(i.total.minus(i.amountPaid), i.currency, t) : null; });
+          buckets.forEach(([k], idx) => { row[k] = idx === b ? m(outstandingOf(i), i.currency, t) : null; });
           return row;
         }),
       };
@@ -230,14 +234,14 @@ export const REPORTS: ReportDef[] = [
     filters: ["client", "currency"],
     async run(db, f) {
       const t = today();
-      const invs = await db.invoice.findMany({ where: { status: { in: OPEN }, clientId: f.clientId, currency: f.currency }, select: { total: true, amountPaid: true, currency: true, dueDate: true } });
+      const invs = await db.invoice.findMany({ where: { status: { in: OPEN }, balanceMoved: 0, clientId: f.clientId, currency: f.currency }, select: { total: true, amountPaid: true, balanceMoved: true, currency: true, dueDate: true } });
       const groups = new Map<string, { label: string; sort: string; currency: string; amount: Prisma.Decimal; n: number; on: Date }>();
       for (const i of invs) {
         const overdue = !i.dueDate || i.dueDate < t;
         const k = overdue ? "0000-00" : ymKey(i.dueDate!);
         const key = `${k}|${i.currency}`;
         const g = groups.get(key) ?? { label: overdue ? "Overdue (past due)" : ymLabel(k), sort: k, currency: i.currency, amount: dec(0), n: 0, on: overdue ? t : i.dueDate! };
-        g.amount = g.amount.plus(i.total.minus(i.amountPaid)); g.n++;
+        g.amount = g.amount.plus(outstandingOf(i)); g.n++;
         groups.set(key, g);
       }
       return {
@@ -258,7 +262,7 @@ export const REPORTS: ReportDef[] = [
       const [projects, pos, invs, pays] = await Promise.all([
         db.project.findMany({ where: { approved: true, status: { not: "CANCELLED" }, approvalDate: { gte: from, lte: to }, currency: cur }, select: { value: true, currency: true, approvalDate: true } }),
         db.purchaseOrder.findMany({ where: { status: { in: APPROVED_PO }, approvedAt: { gte: from, lte: to }, currency: cur }, select: { value: true, currency: true, approvedAt: true } }),
-        db.invoice.findMany({ where: { status: { in: ISSUED }, invoiceDate: { gte: from, lte: to }, currency: cur }, select: { total: true, currency: true, invoiceDate: true } }),
+        db.invoice.findMany({ where: { status: { in: ISSUED }, kind: { not: "BALANCE" }, invoiceDate: { gte: from, lte: to }, currency: cur }, select: { total: true, currency: true, invoiceDate: true } }),
         db.payment.findMany({ where: { state: "VALID", paymentDate: { gte: from, lte: to }, currency: cur }, select: { amount: true, currency: true, paymentDate: true } }),
       ]);
       const grid = new Map<string, Row & { _k: string }>();
@@ -293,7 +297,7 @@ export const REPORTS: ReportDef[] = [
         include: {
           client: { select: { id: true, name: true } },
           purchaseOrders: { where: { status: { in: APPROVED_PO } }, select: { value: true, currency: true } },
-          invoices: { where: { status: { in: ISSUED } }, select: { total: true, amountPaid: true, currency: true } },
+          invoices: { where: { status: { in: ISSUED } }, select: { total: true, amountPaid: true, balanceMoved: true, kind: true, currency: true } },
         },
       });
       const t = today();
@@ -310,9 +314,9 @@ export const REPORTS: ReportDef[] = [
         bump(key, label, p.client.name, "bv", p.approved && p.status !== "CANCELLED" ? p.value : dec(0), p.currency);
         for (const o of p.purchaseOrders) bump(key, label, p.client.name, "po", o.value, o.currency);
         for (const i of p.invoices) {
-          bump(key, label, p.client.name, "invoiced", i.total, i.currency);
+          if (i.kind !== "BALANCE") bump(key, label, p.client.name, "invoiced", i.total, i.currency);
           bump(key, label, p.client.name, "collected", i.amountPaid, i.currency);
-          bump(key, label, p.client.name, "outstanding", i.total.minus(i.amountPaid), i.currency);
+          bump(key, label, p.client.name, "outstanding", outstandingOf(i), i.currency);
         }
       }
       const cols: Column[] = [

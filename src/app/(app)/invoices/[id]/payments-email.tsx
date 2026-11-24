@@ -4,15 +4,19 @@ import { composeInvoiceEmail, MERGE_FIELDS } from "@/server/core/email";
 import { METHOD_LABELS } from "@/server/core/payments";
 import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
+import { outstandingOf } from "@/server/core/money";
+import { PaymentSubmit } from "./payment-submit";
 import { Money } from "@/components/money";
 import { Badge, Card, Field, fmtDate, Input, Select, Table, Td, Textarea } from "@/components/ui";
 import { recordPaymentAction, reversePaymentAction, sendEmailAction } from "../actions";
 
 type P = Payment & { recordedBy: { name: string } | null; reversedBy: { name: string } | null };
 
-export function PaymentsCard({ inv, payments, canRecord, canReverse }: { inv: Invoice; payments: P[]; canRecord: boolean; canReverse: boolean }) {
-  const outstanding = inv.total.minus(inv.amountPaid);
-  const open = inv.status === "UNPAID" || inv.status === "PARTIALLY_PAID";
+export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance }: {
+  inv: Invoice; payments: P[]; canRecord: boolean; canReverse: boolean; canBalance?: boolean;
+}) {
+  const outstanding = outstandingOf(inv);
+  const open = (inv.status === "UNPAID" || inv.status === "PARTIALLY_PAID") && outstanding.gt(0);
   return (
     <Card title="Payments" actions={<span className="text-xs text-slate-500">Paid <Money v={inv.amountPaid} cur={inv.currency} /> · Due <Money v={outstanding} cur={inv.currency} /></span>}>
       <Table head={["Date", "Method", "Reference", "Amount", "Receipt", "Status", ""]} empty="No payments recorded yet.">
@@ -53,7 +57,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse }: { inv: In
               <Field label="Receipt (PDF, PNG, JPEG ≤ 5 MB)"><input type="file" name="receipt" accept="application/pdf,image/png,image/jpeg" className="block w-full pt-2 text-sm" /></Field>
               <Field label="Notes" className="sm:col-span-3"><Textarea name="notes" rows={2} /></Field>
             </div>
-            <SubmitButton>Record payment</SubmitButton>
+            <PaymentSubmit outstanding={Number(outstanding)} currency={inv.currency} canBalance={!!canBalance} />
           </ActionForm>
         </details>
       )}

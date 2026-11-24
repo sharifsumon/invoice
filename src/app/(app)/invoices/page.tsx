@@ -8,6 +8,7 @@ import { filtersToWhere, invoiceListInclude, readFilters } from "@/server/invoic
 import { groupSum } from "@/server/queries";
 import { Money, MultiMoney } from "@/components/money";
 import { buttonClass, Card, fmtDate, Input, labelize, isPoApproved, PageHeader, Select, Stat, StatusBadge, Table, Td } from "@/components/ui";
+import { outstandingOf } from "@/server/core/money";
 
 export const metadata = { title: "Invoices" };
 
@@ -32,9 +33,9 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
         </>} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Stat label="Issued (shown)" value={<MultiMoney rows={groupSum(valid, (i) => i.currency, (i) => i.total)} />} sub="Excludes drafts & cancelled" />
-        <Stat label="Outstanding (shown)" value={<MultiMoney rows={groupSum(valid, (i) => i.currency, (i) => i.total.minus(i.amountPaid))} />} />
-        <Stat label="Overdue (shown)" tone="red" value={<MultiMoney rows={groupSum(valid.filter((i) => isOverdue(i)), (i) => i.currency, (i) => i.total.minus(i.amountPaid))} />} />
+        <Stat label="Issued (shown)" value={<MultiMoney rows={groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />} sub="Excludes drafts, cancelled & balance invoices" />
+        <Stat label="Outstanding (shown)" value={<MultiMoney rows={groupSum(valid, (i) => i.currency, (i) => outstandingOf(i))} />} />
+        <Stat label="Overdue (shown)" tone="red" value={<MultiMoney rows={groupSum(valid.filter((i) => isOverdue(i)), (i) => i.currency, (i) => outstandingOf(i))} />} />
       </div>
 
       <Card>
@@ -72,7 +73,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
                 <Td>{fmtDate(i.dueDate)}</Td>
                 <Td><span className="flex flex-wrap gap-1"><StatusBadge status={i.status} pending={!isPoApproved(i.po.status)} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                 <Td><Money v={i.total} cur={i.currency} /></Td>
-                <Td>{i.status === "CANCELLED" ? "—" : <Money v={i.total.minus(i.amountPaid)} cur={i.currency} />}</Td>
+                <Td>{i.status === "CANCELLED" ? "—" : <Money v={outstandingOf(i)} cur={i.currency} />}</Td>
               </tr>
             ))}
           </Table>

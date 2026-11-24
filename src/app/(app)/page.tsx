@@ -11,6 +11,7 @@ import { collectionsByMonth } from "@/server/core/payments";
 import { prisma } from "@/server/db";
 import { GroupedBarChart } from "@/components/bar-chart";
 import { Card, cx, LinkButton, Table, Td } from "@/components/ui";
+import { outstandingOf } from "@/server/core/money";
 
 export const metadata = { title: "Dashboard" };
 
@@ -53,17 +54,17 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
     prisma.project.count({ where: { status: ProjectStatus.DRAFT } }),
     prisma.purchaseOrder.count({ where: { status: { in: [POStatus.APPROVED, POStatus.COMPLETED] } } }),
     prisma.purchaseOrder.count({ where: { status: POStatus.SUBMITTED } }),
-    prisma.invoice.findMany({ where: { status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] } }, select: { currency: true, total: true, amountPaid: true, status: true, dueDate: true } }),
+    prisma.invoice.findMany({ where: { status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] } }, select: { currency: true, total: true, amountPaid: true, balanceMoved: true, kind: true, status: true, dueDate: true } }),
     prisma.invoice.count({ where: { status: InvoiceStatus.DRAFT, po: { status: { in: [POStatus.APPROVED, POStatus.COMPLETED] } } } }),
     prisma.$queryRaw<{ month: number; currency: string; value: string }[]>`
       SELECT EXTRACT(MONTH FROM "invoiceDate")::int AS month, "currency", SUM("total")::text AS value
-        FROM "Invoice" WHERE "status" NOT IN ('DRAFT','CANCELLED') AND EXTRACT(YEAR FROM "invoiceDate") = ${year}
+        FROM "Invoice" WHERE "status" NOT IN ('DRAFT','CANCELLED') AND "kind" <> 'BALANCE' AND EXTRACT(YEAR FROM "invoiceDate") = ${year}
        GROUP BY 1, 2`,
     collectionsByMonth(prisma, year),
     prisma.companySettings.findUnique({ where: { id: 1 }, select: { defaultCurrency: true } }),
     prisma.invoice.findMany({
-      where: { status: { in: open }, dueDate: { lt: t } }, orderBy: { dueDate: "asc" }, take: 4,
-      select: { id: true, invoiceNumber: true, currency: true, total: true, amountPaid: true, dueDate: true, client: { select: { name: true } } },
+      where: { status: { in: open }, balanceMoved: 0, dueDate: { lt: t } }, orderBy: { dueDate: "asc" }, take: 4,
+      select: { id: true, invoiceNumber: true, currency: true, total: true, amountPaid: true, balanceMoved: true, dueDate: true, client: { select: { name: true } } },
     }),
     prisma.project.findMany({ where: { status: ProjectStatus.DRAFT }, take: 3, orderBy: { updatedAt: "asc" }, select: { id: true, code: true, name: true } }),
     prisma.purchaseOrder.findMany({ where: { status: POStatus.SUBMITTED }, take: 3, orderBy: { updatedAt: "asc" }, select: { id: true, poNumber: true, client: { select: { name: true } } } }),
@@ -72,10 +73,10 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
   // The app works in one currency: the company currency from Settings.
   const cur = company?.defaultCurrency ?? "USD";
   const inCur = issued.filter((i) => i.currency === cur);
-  const invoiced = inCur.reduce((s, i) => s.plus(i.total), dec(0));
+  const invoiced = inCur.filter((i) => i.kind !== "BALANCE").reduce((s, i) => s.plus(i.total), dec(0)); // balance invoices are not new billing
   const collected = inCur.reduce((s, i) => s.plus(i.amountPaid), dec(0));
-  const outstanding = inCur.filter((i) => open.includes(i.status)).reduce((s, i) => s.plus(i.total.minus(i.amountPaid)), dec(0));
-  const overdueCount = issued.filter((i) => open.includes(i.status) && i.dueDate && i.dueDate < t).length;
+  const outstanding = inCur.filter((i) => open.includes(i.status)).reduce((s, i) => s.plus(outstandingOf(i)), dec(0));
+  const overdueCount = issued.filter((i) => open.includes(i.status) && i.dueDate && i.dueDate < t && outstandingOf(i).gt(0)).length;
 
   const chartData = MONTHS.slice(0, t.getUTCMonth() + 1).map((label, idx) => ({
     label,
@@ -89,7 +90,7 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
   const todos: Todo[] = [
     ...overdueList.map((i) => ({
       href: `/invoices/${i.id}`, title: `${i.invoiceNumber} · ${i.client.name}`, tone: "red" as const, tag: "Overdue",
-      detail: `${formatMoney(i.total.minus(i.amountPaid), i.currency)} was due ${i.dueDate!.toISOString().slice(0, 10)}`,
+      detail: `${formatMoney(outstandingOf(i), i.currency)} was due ${i.dueDate!.toISOString().slice(0, 10)}`,
     })),
     ...(can(user.role, "projects", "approve") ? projectsWaiting.map((p) => ({
       href: `/projects/${p.id}`, title: `${p.code} — ${p.name}`, tone: "amber" as const, tag: "Start project", detail: "Draft — set it to In Progress once approved",
@@ -106,7 +107,7 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const paidCount = inCur.filter((i) => i.status === InvoiceStatus.PAID).length;
-  const openCount = inCur.filter((i) => open.includes(i.status)).length;
+  const openCount = inCur.filter((i) => open.includes(i.status) && outstandingOf(i).gt(0)).length;
   const collectedPct = invoiced.gt(0) ? Math.round(collected.div(invoiced).times(100).toNumber()) : 0;
   const amount = (v: ReturnType<typeof dec>) => formatMoney(v, "").trim();
 

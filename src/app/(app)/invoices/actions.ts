@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth";
 import { runAction, str, type ActionState } from "@/server/action";
-import { cancelAndReissue, cancelInvoice, finalizeInvoice, updateDraftInvoice } from "@/server/core/invoices";
+import { cancelAndReissue, cancelInvoice, createBalanceInvoice, finalizeInvoice, updateDraftInvoice } from "@/server/core/invoices";
 import { RuleError } from "@/server/core/permissions";
 import { approvePO } from "@/server/core/pos";
 import { recordPayment, reversePayment } from "@/server/core/payments";
@@ -36,8 +36,27 @@ export async function recordPaymentAction(id: string, _: ActionState, fd: FormDa
       reference: str(fd, "reference"), receivingAccount: str(fd, "receivingAccount"), notes: str(fd, "notes"),
     }, receipt);
     revalidatePath(`/invoices/${id}`);
+    // The payment form asks whether to carry a remaining balance forward to a new invoice.
+    if (str(fd, "createBalance") === "1") {
+      const inv = await prisma.invoice.findUniqueOrThrow({ where: { id }, select: { status: true } });
+      if (inv.status === "PARTIALLY_PAID") {
+        const bal = await createBalanceInvoice(prisma, actor, id);
+        revalidatePath(`/pos/${bal.poId}`);
+        // Nothing is left to pay here, so the payment form disappears; confirm with a page banner instead.
+        redirect(`/invoices/${id}?flash=${encodeURIComponent(`Payment recorded. Balance invoice ${bal.invoiceNumber} created for ${bal.total.toFixed(2)} ${bal.currency}`)}`);
+      }
+    }
     return "Payment recorded";
   });
+}
+
+/** Manual: carry the outstanding balance of a part-paid invoice forward to a new balance invoice. */
+export async function createBalanceInvoiceAction(invoiceId: string, _: ActionState, __: FormData): Promise<ActionState> {
+  const actor = await requireUser();
+  let newId = "";
+  const res = await runAction(async () => { newId = (await createBalanceInvoice(prisma, actor, invoiceId)).id; });
+  if (res?.ok) redirect(`/invoices/${newId}`);
+  return res;
 }
 
 export async function reversePaymentAction(invoiceId: string, paymentId: string, _: ActionState, fd: FormData) {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { InvoiceKind, InvoiceStatus, NumberReset, POStatus } from "@/generated/prisma/enums";
 import { addDays, audit, inTx, parseDate, today, type Actor, type Db, type Tx } from "./common";
-import { amountInWords, dec, money, sum } from "./money";
+import { amountInWords, dec, money, outstandingOf, sum, type OutstandingParts } from "./money";
 import { can, ForbiddenError, RuleError } from "./permissions";
 import { renderInvoicePdf, type InvoiceSnapshot } from "./pdf";
 import { lockPO, poBalance } from "./pos";
@@ -250,6 +250,13 @@ export async function finalizeInvoice(db: Db, actor: Actor, id: string, opts: { 
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
     await lockPO(tx, pre.poId);
+    return finalizeInvoiceTx(tx, actor, id, opts);
+  });
+}
+
+/** Finalize inside an open transaction. Caller must hold the PO lock and have checked permissions. */
+async function finalizeInvoiceTx(tx: Tx, actor: Actor, id: string, opts: { invoiceDate?: string; dueDate?: string } = {}) {
+  {
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id } });
     if (inv.status !== InvoiceStatus.DRAFT) throw new RuleError("Only draft invoices can be finalized");
     const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: inv.poId }, select: { status: true, poNumber: true } });
@@ -279,6 +286,47 @@ export async function finalizeInvoice(db: Db, actor: Actor, id: string, opts: { 
     });
     await audit(tx, actor, "invoice.finalized", "Invoice", id, { after: { invoiceNumber: number, invoiceDate, dueDate, total: inv.total, pdfSha256: file.sha256 } });
     return updated;
+  }
+}
+
+/**
+ * Carry a part-paid invoice's unpaid balance forward to a new, issued BALANCE invoice.
+ * The original keeps its total and payments (Partially Paid) and records the moved amount, so the balance is
+ * outstanding only on the new invoice; balance invoices are not new billing against the PO cap.
+ */
+export async function createBalanceInvoice(db: Db, actor: Actor, invoiceId: string) {
+  if (!can(actor.role, "invoices", "create") || !can(actor.role, "invoices", "approve")) throw new ForbiddenError("invoices", "create");
+  return inTx(db, async (tx) => {
+    const pre = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    await lockPO(tx, pre.poId);
+    const inv = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    if (inv.status !== InvoiceStatus.PARTIALLY_PAID) throw new RuleError("A balance invoice can only be created for a partially paid invoice");
+    const remaining = outstandingOf(inv);
+    if (remaining.lte(0)) throw new RuleError("This invoice has no outstanding balance to carry forward");
+    const live = await tx.invoice.count({ where: { balanceOfId: invoiceId, status: { not: InvoiceStatus.CANCELLED } } });
+    if (live) throw new RuleError("A balance invoice already exists for this invoice");
+
+    await tx.invoice.update({ where: { id: invoiceId }, data: { balanceMoved: inv.balanceMoved.plus(remaining) } });
+    const t = today();
+    const copy = await tx.invoice.create({
+      data: {
+        kind: InvoiceKind.BALANCE, status: InvoiceStatus.DRAFT, balanceOfId: inv.id,
+        clientId: inv.clientId, projectId: inv.projectId, poId: inv.poId, currency: inv.currency,
+        subtotal: remaining, discount: dec(0), taxRate: dec(0), taxAmount: dec(0), total: remaining,
+        dueDate: inv.dueDate && inv.dueDate >= t ? inv.dueDate : null, // past due date → today + payment terms
+        notes: [`Outstanding balance of invoice ${inv.invoiceNumber}.`, inv.notes].filter(Boolean).join("\n"),
+        terms: inv.terms, createdById: actor.id,
+        lineItems: {
+          create: [{
+            sequence: 1, quantity: dec(1), unitPrice: remaining, amount: remaining,
+            description: `Balance of invoice ${inv.invoiceNumber} (total ${inv.total.toFixed(2)}, paid ${inv.amountPaid.toFixed(2)} ${inv.currency})`,
+          }],
+        },
+      },
+    });
+    await audit(tx, actor, "invoice.balance_moved", "Invoice", inv.id, { after: { balanceInvoiceId: copy.id, amount: remaining } });
+    await audit(tx, actor, "invoice.created", "Invoice", copy.id, { after: { balanceOf: inv.id, invoiceNumber: inv.invoiceNumber, amount: remaining } });
+    return finalizeInvoiceTx(tx, actor, copy.id, { invoiceDate: t.toISOString().slice(0, 10) });
   });
 }
 
@@ -292,6 +340,12 @@ export async function cancelInvoice(db: Db, actor: Actor, id: string, reason: st
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id } });
     if (inv.status === InvoiceStatus.CANCELLED) throw new RuleError("Invoice is already cancelled");
     if (inv.amountPaid.gt(0)) throw new RuleError("An invoice with recorded payments cannot be cancelled. Reverse the payments first.");
+    // Cancelling a balance invoice puts the balance back on the original invoice.
+    if (inv.kind === InvoiceKind.BALANCE && inv.balanceOfId) {
+      const orig = await tx.invoice.findUniqueOrThrow({ where: { id: inv.balanceOfId } });
+      const back = orig.balanceMoved.minus(inv.total);
+      await tx.invoice.update({ where: { id: orig.id }, data: { balanceMoved: back.lt(0) ? dec(0) : back } });
+    }
     const updated = await tx.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.CANCELLED, cancelledAt: new Date(), cancelledById: actor.id, cancelReason: reason.trim() },
@@ -317,6 +371,7 @@ export async function cancelAndReissue(db: Db, actor: Actor, id: string, reason:
     if (inv.status === InvoiceStatus.CANCELLED) throw new RuleError("Invoice is already cancelled");
     if (inv.status === InvoiceStatus.DRAFT) throw new RuleError("Draft invoices can simply be edited");
     if (inv.amountPaid.gt(0)) throw new RuleError("An invoice with recorded payments cannot be reissued");
+    if (inv.kind === InvoiceKind.BALANCE) throw new RuleError("A balance invoice cannot be reissued — cancel it and create a new balance invoice instead");
     await tx.invoice.update({
       where: { id },
       data: { status: InvoiceStatus.CANCELLED, cancelledAt: new Date(), cancelledById: actor.id, cancelReason: `Reissued: ${reason.trim()}` },
@@ -337,8 +392,8 @@ export async function cancelAndReissue(db: Db, actor: Actor, id: string, reason:
   });
 }
 
-/** Overdue is a flag, not a status (BRD §5.5.4). */
-export function isOverdue(inv: { status: InvoiceStatus; dueDate: Date | null; total: { minus(x: unknown): { gt(n: number): boolean } }; amountPaid: unknown }, on = today()) {
+/** Overdue is a flag, not a status (BRD §5.5.4). A balance moved to a balance invoice is no longer due here. */
+export function isOverdue(inv: OutstandingParts & { status: InvoiceStatus; dueDate: Date | null }, on = today()) {
   if (inv.status === InvoiceStatus.CANCELLED || inv.status === InvoiceStatus.DRAFT || inv.status === InvoiceStatus.PAID) return false;
-  return !!inv.dueDate && inv.dueDate < on && inv.total.minus(inv.amountPaid).gt(0);
+  return !!inv.dueDate && inv.dueDate < on && outstandingOf(inv).gt(0);
 }
