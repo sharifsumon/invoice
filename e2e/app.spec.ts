@@ -179,8 +179,17 @@ test("user groups: create a group with chosen permissions", async ({ page }) => 
   await page.getByLabel("Initial password *").fill("Sally-pass-12345");
   await page.getByRole("button", { name: "Create user" }).click();
   await expect(page.getByText("User created")).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Sally Sales" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Sally Sales", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create user" })).toHaveCount(0);
+
+  // Edit opens a full-width form above the list; saving closes it
+  await page.getByRole("link", { name: "Edit Sally Sales" }).click();
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-users-edit.png`, fullPage: true });
+  await page.getByLabel("Name *").fill("Sally Seller");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("User updated")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Sally Seller", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
 });
 
 test("two-factor sign-in", async ({ page, context }) => {

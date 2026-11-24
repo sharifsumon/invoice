@@ -21,17 +21,20 @@ export async function createUserAction(_: ActionState, fd: FormData) {
   redirect("/users?flash=User+created");
 }
 
+/** Saves, then closes the edit form (back to the list) with a confirmation. */
 export async function updateUserAction(id: string, _: ActionState, fd: FormData) {
   const actor = await requireUser();
-  return runAction(async () => {
+  const res = await runAction(async () => {
     const u = await updateUser(prisma, actor, id, {
       name: str(fd, "name"), email: str(fd, "email"), groupId: str(fd, "groupId"),
       password: str(fd, "password") || undefined, active: bool(fd, "active"),
     });
     if (id === actor.id) await createSession(u.id, u.sessionVersion); // editing yourself keeps you signed in here
-    revalidatePath("/users");
     return "User updated";
   });
+  if (!res?.ok) return res;
+  revalidatePath("/users");
+  redirect("/users?flash=User+updated");
 }
 
 export async function resetMfaAction(id: string, _: ActionState, _fd: FormData) {
