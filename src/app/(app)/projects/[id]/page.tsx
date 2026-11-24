@@ -12,7 +12,8 @@ import { getSettings } from "@/server/core/settings";
 import { isOverdue } from "@/server/core/invoices";
 import { prisma } from "@/server/db";
 import { groupSum } from "@/server/queries";
-import { Money, MultiMoney } from "@/components/money";
+import { Money } from "@/components/money";
+import { CompanyMoney } from "@/components/company-money";
 import { Card, cx, Flash, fmtDate, labelize, LinkButton, StatusBadge, Table, Td } from "@/components/ui";
 import { setProjectStatusAction, updateProjectAndCloseAction } from "../actions";
 import { ProjectForm } from "../project-form";
@@ -239,7 +240,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
               {otherCur && (
                 <div className="text-xs text-slate-500">
                   <div className="mb-1 font-medium text-slate-600">All currencies (invoiced)</div>
-                  <MultiMoney rows={groupSum(issued.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />
+                  <CompanyMoney rows={groupSum(issued.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />
                 </div>
               )}
             </div>

@@ -6,7 +6,8 @@ import { isOverdue } from "@/server/core/invoices";
 import { prisma } from "@/server/db";
 import { filtersToWhere, invoiceListInclude, readFilters } from "@/server/invoice-list";
 import { groupSum } from "@/server/queries";
-import { Money, MultiMoney } from "@/components/money";
+import { Money } from "@/components/money";
+import { CompanyMoney } from "@/components/company-money";
 import { buttonClass, Card, fmtDate, Input, labelize, isPoApproved, PageHeader, Select, Stat, StatusBadge, Table, Td } from "@/components/ui";
 import { outstandingOf } from "@/server/core/money";
 
@@ -34,9 +35,9 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
         </>} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <Stat label="Issued (shown)" value={<MultiMoney rows={groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />} sub="Excludes drafts, cancelled & balance invoices" />
-        <Stat label="Outstanding (shown)" value={<MultiMoney rows={groupSum(valid, (i) => i.currency, (i) => outstandingOf(i))} />} />
-        <Stat label="Overdue (shown)" tone="red" value={<MultiMoney rows={groupSum(valid.filter((i) => isOverdue(i)), (i) => i.currency, (i) => outstandingOf(i))} />} />
+        <Stat label="Issued (shown)" value={<CompanyMoney rows={groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total)} />} sub="Excludes drafts, cancelled & balance invoices" />
+        <Stat label="Outstanding (shown)" value={<CompanyMoney rows={groupSum(valid, (i) => i.currency, (i) => outstandingOf(i))} />} />
+        <Stat label="Overdue (shown)" tone="red" value={<CompanyMoney rows={groupSum(valid.filter((i) => isOverdue(i)), (i) => i.currency, (i) => outstandingOf(i))} />} />
       </div>
 
       <Card>

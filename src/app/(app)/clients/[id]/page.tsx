@@ -7,7 +7,8 @@ import { isOverdue } from "@/server/core/invoices";
 import { prisma } from "@/server/db";
 import { groupSum } from "@/server/queries";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
-import { Money, MultiMoney } from "@/components/money";
+import { Money } from "@/components/money";
+import { CompanyMoney } from "@/components/company-money";
 import { Badge, Card, DL, Field, fmtDate, Input, labelize, LinkButton, PageHeader, Select, Stat, StatusBadge, Table, Td, Textarea } from "@/components/ui";
 import { ClientForm, PHONE_PATTERN } from "../client-form";
 import { addActivityAction, archiveClientAction, deleteContactAction, saveContactAction, updateClientAction } from "../actions";
@@ -48,10 +49,10 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Business value" value={<MultiMoney rows={bv} />} sub="Approved projects" />
-        <Stat label="Invoiced" value={<MultiMoney rows={invoiced} />} />
-        <Stat label="Collected" value={<MultiMoney rows={paid} />} />
-        <Stat label="Outstanding" value={<MultiMoney rows={outstanding} />} />
+        <Stat label="Business value" value={<CompanyMoney rows={bv} />} sub="Approved projects" />
+        <Stat label="Invoiced" value={<CompanyMoney rows={invoiced} />} />
+        <Stat label="Collected" value={<CompanyMoney rows={paid} />} />
+        <Stat label="Outstanding" value={<CompanyMoney rows={outstanding} />} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

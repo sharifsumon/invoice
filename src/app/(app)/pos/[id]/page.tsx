@@ -25,7 +25,8 @@ const LABELS: Partial<Record<POStatus, string>> = {
 };
 
 export default async function POPage({ params, searchParams }: PageProps<"/pos/[id]">) {
-  const { flash } = await searchParams;
+  const { flash, invoice } = await searchParams;
+  const showInvoiceForm = invoice === "1";
   const user = await requirePermission("pos");
   const { id } = await params;
   const po = await prisma.purchaseOrder.findUnique({
@@ -66,7 +67,8 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
         back={{ href: "/pos", label: "Purchase Orders" }}
         title={<span className="flex items-center gap-3">PO {po.poNumber} <StatusBadge status={po.status} /></span>}
         subtitle={<><Link className="hover:underline" href={`/clients/${po.clientId}`}>{po.client.name}</Link> · <Link className="hover:underline" href={`/projects/${po.projectId}`}>{po.project.code} — {po.project.name}</Link></>}
-        actions={canInvoice && bal.remaining.gt(0) && <a href="#new-invoice" className={buttonClass("primary")}>Create invoice</a>}
+        actions={canInvoice && bal.remaining.gt(0) && !showInvoiceForm &&
+          <Link href={`/pos/${po.id}?invoice=1#new-invoice`} className={buttonClass("primary")}>Create invoice</Link>}
       />
 
       {transitions.length > 0 && (
@@ -105,9 +107,10 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {po.milestones.length > 0 && (
           <Card title="Payment milestones" actions={missingInvoices && can(user.role, "pos", "approve") &&
             <ActionButton action={retryGenerationAction.bind(null, po.id)} label="Generate missing invoices" />}>
-            <Table head={["#", "Milestone", "%", "Amount", "Expected", "Invoice"]} empty="No milestone plan — invoices are raised manually.">
+            <Table head={["#", "Milestone", "%", "Amount", "Expected", "Invoice"]}>
               {po.milestones.map((m) => {
                 const active = m.invoices.find((i) => i.status !== "CANCELLED");
                 return (
@@ -123,10 +126,9 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                 );
               })}
             </Table>
-            {po.milestones.length > 0 && (
-              <div className={`mt-3 text-xs ${planOk ? "text-brand-600" : "text-lime-ink"}`}>Total {pctTotal.toString()}%</div>
-            )}
+            <div className={`mt-3 text-xs ${planOk ? "text-brand-600" : "text-lime-ink"}`}>Total {pctTotal.toString()}%</div>
           </Card>
+          )}
 
           {partPaid.length > 0 && (
             <Card title="Outstanding on part-paid invoices">
@@ -165,9 +167,9 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
             </Table>
           </Card>
 
-          {canInvoice && (
+          {canInvoice && showInvoiceForm && (
             <div id="new-invoice" className="scroll-mt-24">
-            <Card title="Create invoice">
+            <Card title="Create invoice" actions={<Link href={`/pos/${po.id}`} scroll={false} className={buttonClass("secondary")}>Cancel</Link>}>
               {bal.remaining.lte(0) ? (
                 <p className="text-sm text-slate-500">This PO is fully invoiced. A new invoice is only possible after an existing one is cancelled.</p>
               ) : (

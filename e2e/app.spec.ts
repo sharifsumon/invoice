@@ -90,6 +90,8 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   // Saved straight into "Submitted for approval", with one pending invoice per milestone
   await expect(page.getByText("Submitted for approval").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Pending approval" })).toHaveCount(2);
+  await expect(page.getByRole("heading", { name: "Payment milestones" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create draft invoice" })).toHaveCount(0); // form only on request
 
   // Approve from a pending invoice: approves the PO and releases both milestone invoices
   await page.getByRole("link", { name: "Pending approval" }).first().click();

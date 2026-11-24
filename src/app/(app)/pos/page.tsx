@@ -62,7 +62,7 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
                 <Td><Money v={inv ? p.value.minus(inv) : p.value} cur={p.currency} /></Td>
                 <Td className="tabular">{p._count.milestones || "—"}</Td>
                 <Td>{canInvoice && p.status === "APPROVED" && (inv ? p.value.minus(inv).gt(0) : true) && (
-                  <Link href={`/pos/${p.id}#new-invoice`} className="rounded-lg bg-brand-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-600">Create invoice</Link>
+                  <Link href={`/pos/${p.id}?invoice=1#new-invoice`} className="rounded-lg bg-brand-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-600">Create invoice</Link>
                 )}</Td>
               </tr>
             );

@@ -35,7 +35,7 @@ export default async function NewInvoicePage() {
               <Td>{fmtDate(p.poDate)}</Td>
               <Td><Money v={p.value} cur={p.currency} /></Td>
               <Td><Money v={remaining} cur={p.currency} className="font-semibold" /></Td>
-              <Td><Link href={`/pos/${p.id}#new-invoice`} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600">Create invoice</Link></Td>
+              <Td><Link href={`/pos/${p.id}?invoice=1#new-invoice`} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600">Create invoice</Link></Td>
             </tr>
           ))}
         </Table>
