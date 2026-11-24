@@ -92,13 +92,13 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
       href: `/invoices/${i.id}`, title: `${i.invoiceNumber} · ${i.client.name}`, tone: "red" as const, tag: "Overdue",
       detail: `${formatMoney(outstandingOf(i), i.currency)} was due ${i.dueDate!.toISOString().slice(0, 10)}`,
     })),
-    ...(can(user.role, "projects", "approve") ? projectsWaiting.map((p) => ({
+    ...(can(user, "projects", "approve") ? projectsWaiting.map((p) => ({
       href: `/projects/${p.id}`, title: `${p.code} — ${p.name}`, tone: "amber" as const, tag: "Start project", detail: "Draft — set it to In Progress once approved",
     })) : []),
-    ...(can(user.role, "pos", "approve") ? posWaiting.map((p) => ({
+    ...(can(user, "pos", "approve") ? posWaiting.map((p) => ({
       href: `/pos/${p.id}`, title: `PO ${p.poNumber} · ${p.client.name}`, tone: "amber" as const, tag: "Approve PO", detail: "Approving creates its milestone invoices",
     })) : []),
-    ...(draftCount > 0 && can(user.role, "invoices", "approve") ? [{
+    ...(draftCount > 0 && can(user, "invoices", "approve") ? [{
       href: "/invoices?status=DRAFT", title: `${draftCount} draft invoice${draftCount === 1 ? "" : "s"}`, tone: "brand" as const, tag: "Finalize",
       detail: "Review and finalize to issue them",
     }] : []),
@@ -119,8 +119,8 @@ export default async function Dashboard({ searchParams }: PageProps<"/">) {
           <p className="mt-1 text-sm text-slate-500">{t.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {can(user.role, "clients", "create") && <LinkButton href="/clients/new" variant="secondary"><UserPlus className="h-4 w-4" aria-hidden />New client</LinkButton>}
-          {can(user.role, "pos", "create") && <LinkButton href="/pos/new"><FilePlus2 className="h-4 w-4" aria-hidden />New PO</LinkButton>}
+          {can(user, "clients", "create") && <LinkButton href="/clients/new" variant="secondary"><UserPlus className="h-4 w-4" aria-hidden />New client</LinkButton>}
+          {can(user, "pos", "create") && <LinkButton href="/pos/new"><FilePlus2 className="h-4 w-4" aria-hidden />New PO</LinkButton>}
         </div>
       </div>
       {sp.denied && <div className="mb-5 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">You don&apos;t have access to that page.</div>}

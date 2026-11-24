@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { InvoiceStatus, POStatus, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { InvoiceStatus, POStatus, ProjectStatus } from "@/generated/prisma/enums";
 import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject, updateProject, businessValue } from "@/server/core/projects";
 import { approvePO, createPO, generateMilestoneInvoices, poBalance, transitionPO } from "@/server/core/pos";
@@ -10,7 +10,7 @@ import { getSettings, updateCompany } from "@/server/core/settings";
 import { storageRoot } from "@/server/core/storage";
 import { dec } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
-import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, Role, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;

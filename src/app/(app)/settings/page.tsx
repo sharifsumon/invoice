@@ -5,9 +5,8 @@ import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { buttonClass, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { getInvoiceTemplate, MERGE_FIELDS } from "@/server/core/email";
-import { NotificationEvent, Role } from "@/generated/prisma/enums";
-import { EVENT_LABELS, recipientRoles } from "@/server/core/notifications";
-import { ROLE_LABELS } from "@/server/core/permissions";
+import { NotificationEvent } from "@/generated/prisma/enums";
+import { EVENT_LABELS, recipientGroups } from "@/server/core/notifications";
 import { Table, Td } from "@/components/ui";
 import {
   addRateAction, deleteRateAction, removeLogoAction, saveCompanyAction, saveEmailTemplateAction, saveNotificationMatrixAction,
@@ -22,7 +21,8 @@ export default async function SettingsPage() {
   const emailTpl = await getInvoiceTemplate(prisma);
   const smtp = process.env.SMTP_HOST;
   const rates = await prisma.exchangeRate.findMany({ orderBy: [{ effectiveDate: "desc" }, { fromCurrency: "asc" }], take: 100 });
-  const matrix = await Promise.all(Object.values(NotificationEvent).map(async (e) => ({ event: e, roles: await recipientRoles(prisma, e) })));
+  const groups = await prisma.userGroup.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const matrix = await Promise.all(Object.values(NotificationEvent).map(async (e) => ({ event: e, groupIds: await recipientGroups(prisma, e) })));
   const year = new Date().getFullYear();
   const sample = `${t.numberPrefix}${t.numberReset === "YEARLY" ? `${year}-` : ""}${"1".padStart(t.numberPadding, "0")}`;
 
@@ -99,15 +99,15 @@ export default async function SettingsPage() {
           </Card>
 
           <Card title="Notification recipients">
-            <p className="mb-3 text-xs text-slate-500">Choose which roles receive each event. Due-soon means due within 7 days.</p>
+            <p className="mb-3 text-xs text-slate-500">Choose which user groups receive each event. Due-soon means due within 7 days.</p>
             <ActionForm action={saveNotificationMatrixAction}>
-              <Table head={["Event", ...Object.values(Role).map((r) => ROLE_LABELS[r])]}>
-                {matrix.map(({ event, roles }) => (
+              <Table head={["Event", ...groups.map((g) => g.name)]}>
+                {matrix.map(({ event, groupIds }) => (
                   <tr key={event}>
                     <Td className="font-medium">{EVENT_LABELS[event]}</Td>
-                    {Object.values(Role).map((r) => (
-                      <Td key={r} className="text-center">
-                        <input type="checkbox" name={`${event}:${r}`} defaultChecked={roles.includes(r)} aria-label={`${EVENT_LABELS[event]} — ${ROLE_LABELS[r]}`} />
+                    {groups.map((g) => (
+                      <Td key={g.id} className="text-center">
+                        <input type="checkbox" name={`${event}:${g.id}`} defaultChecked={groupIds.includes(g.id)} aria-label={`${EVENT_LABELS[event]} — ${g.name}`} />
                       </Td>
                     ))}
                   </tr>

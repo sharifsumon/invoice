@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
-import { PaymentMethod, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { PaymentMethod, ProjectStatus } from "@/generated/prisma/enums";
 import { adminResetMfa, beginMfaSetup, changeOwnPassword, confirmMfaSetup, disableOwnMfa, signOutEverywhere } from "@/server/core/account";
 import { addAttachment, removeAttachment, sniffAttachment } from "@/server/core/attachments";
 import { createClient, updateClient, upsertContact } from "@/server/core/clients";
@@ -10,9 +10,10 @@ import { cancelInvoice, createManualInvoice, finalizeInvoice } from "@/server/co
 import { recordPayment, reversePayment } from "@/server/core/payments";
 import { updateCompany, updateTemplate, updateUser } from "@/server/core/settings";
 import { base32Decode, base32Encode, totp, verifyTotp } from "@/server/core/totp";
-import { can, PERMISSIONS } from "@/server/core/permissions";
-import type { Actor } from "@/server/core/common";
-import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
+import { can } from "@/server/core/permissions";
+import { loadActor, type Actor } from "@/server/core/common";
+import { createGroup, createUser, deleteGroup, updateGroup } from "@/server/core/users";
+import { baseSettings, cl, ct, groupId, makeActor, Role, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -47,8 +48,8 @@ describe("TOTP (RFC 6238)", () => {
 
 describe("Accounts & sessions", () => {
   async function user(role: Role = Role.FINANCE, pw = "Initial-pass-123") {
-    const u = await db.user.create({ data: { name: "U", email: `${uid("u")}@t.local`, role, passwordHash: await bcrypt.hash(pw, 4) } });
-    return { actor: { id: u.id, role: u.role, name: u.name } as Actor, pw };
+    const u = await db.user.create({ data: { name: "U", email: `${uid("u")}@t.local`, groupId: await groupId(db, role), passwordHash: await bcrypt.hash(pw, 4) } });
+    return { actor: await loadActor(db, u.id), pw };
   }
   const sv = async (id: string) => (await db.user.findUniqueOrThrow({ where: { id } })).sessionVersion;
 
@@ -63,15 +64,16 @@ describe("Accounts & sessions", () => {
     expect(await sv(actor.id)).toBe(before + 2);
   });
 
-  it("admin role change, deactivation or reset revokes the user's sessions", async () => {
+  it("admin group change, deactivation or reset revokes the user's sessions", async () => {
     const { actor } = await user(Role.VIEWER);
     const v0 = await sv(actor.id);
     const u = await db.user.findUniqueOrThrow({ where: { id: actor.id } });
-    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, role: Role.VIEWER, active: true });
+    const [viewerG, financeG] = [await groupId(db, Role.VIEWER), await groupId(db, Role.FINANCE)];
+    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, groupId: viewerG, active: true });
     expect(await sv(actor.id)).toBe(v0); // a rename alone does not
-    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, role: Role.FINANCE, active: true });
+    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, groupId: financeG, active: true });
     expect(await sv(actor.id)).toBe(v0 + 1);
-    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, role: Role.FINANCE, active: false });
+    await updateUser(db, admin, actor.id, { name: "Renamed", email: u.email, groupId: financeG, active: false });
     expect(await sv(actor.id)).toBe(v0 + 2);
   });
 
@@ -156,11 +158,52 @@ describe("Audit coverage (BRD §5.10)", () => {
     expect(started?.after).toMatchObject({ status: "IN_PROGRESS", approved: true });
   });
 
-  it("permission matrix: viewers can never mutate; only admins administer", () => {
-    for (const [, actions] of Object.entries(PERMISSIONS.VIEWER)) expect(actions).toEqual(["view"]);
-    for (const role of Object.keys(PERMISSIONS) as Role[]) {
-      expect(can(role, "users", "administer")).toBe(role === "ADMIN");
-      expect(can(role, "settings", "administer")).toBe(role === "ADMIN");
+  it("built-in groups: viewers can never mutate; only administrators manage users, groups and settings", async () => {
+    for (const actions of Object.values(viewer.perms)) expect(actions).toEqual(["view"]);
+    for (const r of Object.values(Role)) {
+      const a = await makeActor(db, r);
+      expect(can(a, "users", "groups")).toBe(r === "ADMIN");
+      expect(can(a, "settings", "administer")).toBe(r === "ADMIN");
     }
+  });
+});
+
+describe("User groups", () => {
+  it("a custom group grants exactly its ticked permissions (and implies view)", async () => {
+    const g = await createGroup(db, admin, { name: uid("Sales"), permissions: { clients: ["create", "edit"], projects: ["create"], bogus: ["x"] } });
+    expect(g.permissions).toEqual({ clients: ["view", "create", "edit"], projects: ["view", "create"] });
+    const u = await createUser(db, admin, { name: "Sam", email: `${uid("sam")}@t.local`, groupId: g.id, password: "Sales-pass-123" });
+    const sam = await loadActor(db, u.id);
+    const c = await createClient(db, sam, cl(uid("SamCo")), [ct()]);
+    await updateClient(db, sam, c.id, cl("Renamed"));
+    await expect(createPO(db, sam, { poNumber: uid("PO"), projectId: "x", poDate: "2026-01-01", value: "10" })).rejects.toThrow(/permission/);
+    await expect(createGroup(db, sam, { name: uid("Nope"), permissions: {} })).rejects.toThrow(/permission/);
+
+    // Changing the group's permissions applies to its members
+    await updateGroup(db, admin, g.id, { name: g.name, permissions: { clients: ["view"] } });
+    await expect(updateClient(db, await loadActor(db, u.id), c.id, cl("Again"))).rejects.toThrow(/permission/);
+  });
+
+  it("delete permission: archive needs clients.delete; deactivating a user needs users.delete", async () => {
+    const g = await createGroup(db, admin, { name: uid("Editors"), permissions: { clients: ["edit"], users: ["edit"] } });
+    const u = await createUser(db, admin, { name: "Ed", email: `${uid("ed")}@t.local`, groupId: g.id, password: "Editor-pass-123" });
+    const ed = await loadActor(db, u.id);
+    const { setClientArchived } = await import("@/server/core/clients");
+    const c = await createClient(db, admin, cl(uid("Arch")), [ct()]);
+    await expect(setClientArchived(db, ed, c.id, true)).rejects.toThrow(/permission/);
+    const other = await createUser(db, admin, { name: "Ozzy", email: `${uid("oz")}@t.local`, groupId: g.id, password: "Other-pass-123" });
+    await expect(updateUser(db, ed, other.id, { name: "Ozzy", email: other.email, groupId: g.id, active: false })).rejects.toThrow(/permission/);
+    await updateUser(db, ed, other.id, { name: "Oswald", email: other.email, groupId: g.id, active: true }); // plain edit is fine
+  });
+
+  it("cannot lock everyone out of user management; a group with users cannot be deleted", async () => {
+    const adminGroup = await groupId(db, Role.ADMIN);
+    // Stripping "manage groups" from the only group that has it is refused
+    const before = await db.userGroup.findUniqueOrThrow({ where: { id: adminGroup } });
+    await expect(updateGroup(db, admin, adminGroup, { name: before.name, permissions: { clients: ["view"] } })).rejects.toThrow(/manage groups/);
+    await expect(deleteGroup(db, admin, adminGroup)).rejects.toThrow(/Move the/);
+    const empty = await createGroup(db, admin, { name: uid("Empty"), permissions: {} });
+    await deleteGroup(db, admin, empty.id);
+    expect(await db.userGroup.findUnique({ where: { id: empty.id } })).toBeNull();
   });
 });

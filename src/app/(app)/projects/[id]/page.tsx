@@ -38,18 +38,19 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
   if (!project) notFound();
   const [clients, managers, { company }, history] = await Promise.all([
     prisma.client.findMany({ where: { OR: [{ archived: false }, { id: project.clientId }] }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.user.findMany({ where: { active: true, role: { in: ["PROJECT_MANAGER", "ADMIN", "MANAGEMENT"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getSettings(prisma),
     prisma.auditLog.findMany({ where: { entityType: "Project", entityId: id }, orderBy: { createdAt: "desc" }, take: 30, include: { actor: { select: { name: true } } } }),
   ]);
 
   const approvedPOs = project.purchaseOrders.filter((p) => p.status === "APPROVED" || p.status === "COMPLETED");
   const issued = project.invoices.filter((i) => i.status !== "CANCELLED" && i.status !== "DRAFT");
-  const editable = can(user.role, "projects", "edit") && project.status !== "CANCELLED";
+  const editable = can(user, "projects", "edit") && project.status !== "CANCELLED";
   const editing = editable && edit === "1";
   const statusOptions = PROJECT_STATUSES.map((s) => ({
     value: s,
-    allowed: PROJECT_TRANSITIONS[project.status].includes(s) && can(user.role, "projects", transitionApproves(project, s) ? "approve" : "edit"),
+    allowed: PROJECT_TRANSITIONS[project.status].includes(s)
+      && can(user, "projects", s === "CANCELLED" ? "delete" : transitionApproves(project, s) ? "approve" : "edit"),
   }));
   const canChangeStatus = statusOptions.some((o) => o.allowed);
   const approvesOn = PROJECT_STATUSES.filter((s) => transitionApproves(project, s));
@@ -104,7 +105,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                   <Pencil className="h-4 w-4" aria-hidden />Edit project
                 </Link>
               )}
-              {can(user.role, "pos", "create") && project.status !== "CANCELLED" && (
+              {can(user, "pos", "create") && project.status !== "CANCELLED" && (
                 <Link href={`/pos/new?projectId=${project.id}`}
                   className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-white px-4 text-sm font-medium text-brand-700 shadow-sm transition hover:bg-brand-50">
                   <Plus className="h-4 w-4" aria-hidden />New PO
@@ -158,7 +159,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                       <MiniStat label="Invoices issued" value={String(issued.length)} sub={overdue ? `${overdue} overdue` : "None overdue"} alert={overdue > 0} href={tabHref("invoices")} />
                       <MiniStat label="Actual end" value={project.actualEndDate ? fmtDate(project.actualEndDate) : "—"} sub={project.status === "COMPLETED" ? "Completed" : "Not finished"} />
                     </div>
-                    {project.status === "CANCELLED" && can(user.role, "projects", "edit") && (
+                    {project.status === "CANCELLED" && can(user, "projects", "edit") && (
                       <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">This project is cancelled. Set its status back to Draft to edit it.</p>
                     )}
                   </div>

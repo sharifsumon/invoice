@@ -9,7 +9,7 @@ import { removeLogo, updateCompany, updateTemplate, uploadLogo } from "@/server/
 import { updateInvoiceTemplate } from "@/server/core/email";
 import { addRate, deleteRate } from "@/server/core/fx";
 import { setNotificationSetting } from "@/server/core/notifications";
-import { NotificationEvent, Role } from "@/generated/prisma/enums";
+import { NotificationEvent } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 
 export async function addRateAction(_: ActionState, fd: FormData) {
@@ -36,9 +36,10 @@ export async function deleteRateAction(id: string, _: ActionState, _fd: FormData
 export async function saveNotificationMatrixAction(_: ActionState, fd: FormData) {
   const actor = await requireUser();
   return runAction(async () => {
+    const groups = await prisma.userGroup.findMany({ select: { id: true } });
     for (const event of Object.values(NotificationEvent)) {
-      for (const role of Object.values(Role)) {
-        await setNotificationSetting(prisma, actor, event, role, fd.get(`${event}:${role}`) === "on");
+      for (const g of groups) {
+        await setNotificationSetting(prisma, actor, event, g.id, fd.get(`${event}:${g.id}`) === "on");
       }
     }
     revalidatePath("/settings");

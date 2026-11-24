@@ -48,16 +48,16 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
     prisma.project.findMany({ where: { status: { not: "CANCELLED" } }, orderBy: { code: "asc" }, select: { id: true, code: true, name: true, currency: true, client: { select: { name: true } } } }),
   ]);
 
-  const editable = can(user.role, "pos", "edit") && (["DRAFT", "SUBMITTED", "REJECTED"] as POStatus[]).includes(po.status);
+  const editable = can(user, "pos", "edit") && (["DRAFT", "SUBMITTED", "REJECTED"] as POStatus[]).includes(po.status);
   const transitions = PO_TRANSITIONS[po.status].filter((t) =>
-    can(user.role, "pos", t === "APPROVED" || t === "REJECTED" ? "approve" : t === "CANCELLED" ? "cancel" : "edit"));
+    can(user, "pos", t === "APPROVED" || t === "REJECTED" ? "approve" : t === "CANCELLED" ? "delete" : "edit"));
   const pctTotal = sum(po.milestones.map((m) => m.percentage));
   const planOk = isMilestonePlanComplete(po.milestones);
   const approved = isPoApproved(po.status);
   const missingInvoices = (po.status === "APPROVED" || po.status === "SUBMITTED") && planOk && po.milestones.some((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
   const openMilestones = po.milestones.filter((m) => !m.invoices.some((i) => i.status !== "CANCELLED"));
-  const canInvoice = po.status === "APPROVED" && can(user.role, "invoices", "create");
-  const canBalance = can(user.role, "invoices", "create") && can(user.role, "invoices", "approve");
+  const canInvoice = po.status === "APPROVED" && can(user, "invoices", "create");
+  const canBalance = can(user, "invoices", "create") && can(user, "invoices", "approve");
   const partPaid = po.invoices.filter((i) => i.status === "PARTIALLY_PAID" && !i.balanceInvoices.length && outstandingOf(i).gt(0));
 
   return (
@@ -108,7 +108,7 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {po.milestones.length > 0 && (
-          <Card title="Payment milestones" actions={missingInvoices && can(user.role, "pos", "approve") &&
+          <Card title="Payment milestones" actions={missingInvoices && can(user, "pos", "approve") &&
             <ActionButton action={retryGenerationAction.bind(null, po.id)} label="Generate missing invoices" />}>
             <Table head={["#", "Milestone", "%", "Amount", "Expected", "Invoice"]}>
               {po.milestones.map((m) => {
@@ -209,14 +209,14 @@ export default async function POPage({ params, searchParams }: PageProps<"/pos/[
                 <li key={a.id} className="rounded-lg border border-slate-100 p-2">
                   <a href={`/api/attachments/${a.id}`} target="_blank" className="break-all font-medium text-brand-700 hover:underline">{a.fileName}</a>
                   <div className="text-xs text-slate-400">{(a.sizeBytes / 1024).toFixed(0)} KB · {fmtDate(a.createdAt)} · {a.uploadedBy?.name ?? "—"}</div>
-                  {can(user.role, "pos", "edit") && (
+                  {can(user, "pos", "edit") && (
                     <div className="mt-1"><ActionButton action={removeAttachmentAction.bind(null, po.id, a.id)} label="Remove" variant="ghost" reasonPrompt="Why remove this attachment?" /></div>
                   )}
                 </li>
               ))}
               {!attachments.length && <li className="text-slate-400">No attachments.</li>}
             </ul>
-            {can(user.role, "pos", "edit") && (
+            {can(user, "pos", "edit") && (
               <ActionForm action={uploadAttachmentAction.bind(null, po.id)} resetOnSuccess className="mt-4 space-y-2">
                 <input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" className="block w-full text-sm" />
                 <p className="text-xs text-slate-400">PDF, image, Word or Excel up to 10 MB — e.g. the signed client PO.</p>

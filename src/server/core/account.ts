@@ -61,7 +61,7 @@ export async function disableOwnMfa(db: Db, actor: Actor, password: string, code
 
 /** Admin recovery when a user loses their authenticator. Signs them out everywhere. */
 export async function adminResetMfa(db: Db, actor: Actor, userId: string) {
-  if (!can(actor.role, "users", "administer")) throw new ForbiddenError("users", "administer");
+  if (!can(actor, "users", "edit")) throw new ForbiddenError("users", "edit");
   return inTx(db, async (tx) => {
     await tx.user.update({ where: { id: userId }, data: { mfaEnabled: false, mfaSecret: null, sessionVersion: { increment: 1 } } });
     await audit(tx, actor, "user.mfa_reset", "User", userId);

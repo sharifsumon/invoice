@@ -1,16 +1,19 @@
-import { InvoiceStatus, NotificationEvent, Role } from "@/generated/prisma/enums";
+import { InvoiceStatus, NotificationEvent } from "@/generated/prisma/enums";
 import { addDays, audit, today, type Actor, type Db } from "./common";
 import { formatMoney } from "./money";
 import { can, ForbiddenError } from "./permissions";
 import { outstandingOf } from "./money";
 
-/** Default recipients per event (BRD §5.9). Admins can change these in Settings → Notifications. */
-export const DEFAULT_RECIPIENTS: Record<NotificationEvent, Role[]> = {
-  INVOICE_DUE_SOON: [Role.FINANCE, Role.ADMIN],
-  INVOICE_OVERDUE: [Role.FINANCE, Role.MANAGEMENT, Role.ADMIN],
-  PO_APPROVED: [Role.FINANCE, Role.PROJECT_MANAGER, Role.MANAGEMENT, Role.ADMIN],
-  INVOICE_GENERATION_FAILED: [Role.FINANCE, Role.ADMIN],
-  EMAIL_FAILED: [Role.FINANCE, Role.ADMIN],
+/**
+ * Default recipients per event (BRD §5.9), by built-in group key. Groups created later receive nothing
+ * until switched on in Settings → Notifications.
+ */
+export const DEFAULT_RECIPIENTS: Record<NotificationEvent, string[]> = {
+  INVOICE_DUE_SOON: ["FINANCE", "ADMIN"],
+  INVOICE_OVERDUE: ["FINANCE", "MANAGEMENT", "ADMIN"],
+  PO_APPROVED: ["FINANCE", "PROJECT_MANAGER", "MANAGEMENT", "ADMIN"],
+  INVOICE_GENERATION_FAILED: ["FINANCE", "ADMIN"],
+  EMAIL_FAILED: ["FINANCE", "ADMIN"],
 };
 
 export const EVENT_LABELS: Record<NotificationEvent, string> = {
@@ -23,24 +26,28 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
 
 export const DUE_SOON_DAYS = 7;
 
-export async function recipientRoles(db: Db, event: NotificationEvent): Promise<Role[]> {
-  const settings = await db.notificationSetting.findMany({ where: { event } });
-  return Object.values(Role).filter((r) => {
-    const s = settings.find((x) => x.role === r);
-    return s ? s.enabled : DEFAULT_RECIPIENTS[event].includes(r);
-  });
+/** IDs of the groups that receive an event: the saved setting, else the built-in default. */
+export async function recipientGroups(db: Db, event: NotificationEvent): Promise<string[]> {
+  const [groups, settings] = await Promise.all([
+    db.userGroup.findMany({ select: { id: true, key: true } }),
+    db.notificationSetting.findMany({ where: { event } }),
+  ]);
+  return groups.filter((g) => {
+    const s = settings.find((x) => x.groupId === g.id);
+    return s ? s.enabled : !!g.key && DEFAULT_RECIPIENTS[event].includes(g.key);
+  }).map((g) => g.id);
 }
 
 /**
- * Fan out one event to every active user in the enabled roles. `dedupeKey` makes it idempotent per user,
+ * Fan out one event to every active user in the enabled groups. `dedupeKey` makes it idempotent per user,
  * so repeated scans or retries never duplicate a notification. Never throws — notifications must not
  * break the business action that triggered them.
  */
 export async function notify(db: Db, event: NotificationEvent, n: { title: string; body?: string; link?: string; dedupeKey: string }) {
   try {
-    const roles = await recipientRoles(db, event);
-    if (!roles.length) return 0;
-    const users = await db.user.findMany({ where: { active: true, role: { in: roles } }, select: { id: true } });
+    const groups = await recipientGroups(db, event);
+    if (!groups.length) return 0;
+    const users = await db.user.findMany({ where: { active: true, groupId: { in: groups } }, select: { id: true } });
     const r = await db.notification.createMany({
       data: users.map((u) => ({ userId: u.id, event, title: n.title, body: n.body ?? null, link: n.link ?? null, dedupeKey: `${event}:${n.dedupeKey}` })),
       skipDuplicates: true,
@@ -84,10 +91,10 @@ export async function maybeScan(db: Db) {
   await scanDueNotifications(db);
 }
 
-export async function setNotificationSetting(db: Db, actor: Actor, event: NotificationEvent, role: Role, enabled: boolean) {
-  if (!can(actor.role, "settings", "administer")) throw new ForbiddenError("settings", "administer");
-  await db.notificationSetting.upsert({ where: { event_role: { event, role } }, update: { enabled }, create: { event, role, enabled } });
-  await db.$transaction(async (tx) => audit(tx, actor, "settings.notifications.updated", "NotificationSetting", `${event}:${role}`, { after: { enabled } }));
+export async function setNotificationSetting(db: Db, actor: Actor, event: NotificationEvent, groupId: string, enabled: boolean) {
+  if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+  await db.notificationSetting.upsert({ where: { event_groupId: { event, groupId } }, update: { enabled }, create: { event, groupId, enabled } });
+  await db.$transaction(async (tx) => audit(tx, actor, "settings.notifications.updated", "NotificationSetting", `${event}:${groupId}`, { after: { enabled } }));
 }
 
 export async function markRead(db: Db, userId: string, ids: string[] | "all") {

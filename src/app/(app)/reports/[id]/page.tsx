@@ -20,7 +20,7 @@ export default async function ReportPage({ params, searchParams }: PageProps<"/r
     def.filters.includes("client") ? prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([]),
   ]);
   const qs = filtersQuery(sp);
-  const canExport = can(user.role, "reports", "export");
+  const canExport = can(user, "reports", "export");
   const raw = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string) : "");
 
   return (

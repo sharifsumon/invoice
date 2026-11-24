@@ -23,13 +23,12 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
   ]);
   const valid = invoices.filter((i) => i.status !== "CANCELLED" && i.status !== "DRAFT");
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString();
-  const canExport = can(user.role, "invoices", "export");
+  const canExport = can(user, "invoices", "export");
 
   return (
     <>
       <PageHeader title="Invoices" subtitle={`${invoices.length} shown`}
         actions={<>
-          {can(user.role, "invoices", "create") && <Link href="/invoices/new" className={buttonClass("primary")}>New invoice</Link>}
           {canExport && <><a href={`/api/invoices/export?${qs}`} className={buttonClass("secondary")}>Export CSV</a>
           <a href={`/api/invoices/export?${qs}${qs ? "&" : ""}format=xlsx`} className={buttonClass("secondary")}>Export Excel</a></>}
         </>} />
@@ -66,7 +65,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
                 <Td><Link href={`/invoices/${i.id}`} className="font-medium text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link>
                   {i.version > 1 && <span className="ml-1 text-xs text-slate-400">v{i.version}</span>}
                   <div className="text-xs text-slate-400">{labelize(i.kind)}
-                    {i.invoiceNumber && i.status !== "CANCELLED" && can(user.role, "invoices", "email") && (
+                    {i.invoiceNumber && i.status !== "CANCELLED" && can(user, "invoices", "email") && (
                       <> · <Link href={`/invoices/${i.id}#email`} className="text-brand-600 hover:underline">Email</Link></>
                     )}</div></Td>
                 <Td>{i.client.name}</Td>

@@ -3,21 +3,22 @@ import { after } from "next/server";
 import { Bell, ChevronDown, FilePlus2, LogOut, Search, Settings, ShieldAlert, UserRound } from "lucide-react";
 import { requireUser } from "@/server/auth";
 import { maybeScan } from "@/server/core/notifications";
-import { can, ROLE_LABELS, type Module } from "@/server/core/permissions";
+import { can, type Action, type Module } from "@/server/core/permissions";
 import { getSettings } from "@/server/core/settings";
 import { prisma } from "@/server/db";
 import { logout } from "../login/actions";
 import { CurrentSection, MobileNav, NavLinks, type NavItem } from "./nav-links";
 
-const NAV: (NavItem & { module?: Module })[] = [
+const NAV: (NavItem & { module?: Module; action?: Action })[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", section: "Overview" },
   { href: "/clients", label: "Clients", icon: "clients", module: "clients", section: "Sales" },
   { href: "/projects", label: "Projects", icon: "projects", module: "projects", section: "Sales" },
   { href: "/pos", label: "Purchase Orders", icon: "pos", module: "pos", section: "Finance" },
   { href: "/invoices", label: "Invoices", icon: "invoices", module: "invoices", section: "Finance" },
   { href: "/reports", label: "Reports", icon: "reports", module: "reports", section: "Finance" },
-  { href: "/settings", label: "Settings", icon: "settings", module: "settings", section: "Admin" },
+  { href: "/settings", label: "Settings", icon: "settings", module: "settings", action: "administer", section: "Admin" },
   { href: "/users", label: "Users", icon: "users", module: "users", section: "Admin" },
+  { href: "/users/groups", label: "User groups", icon: "groups", module: "users", action: "groups", section: "Admin" },
   { href: "/audit", label: "Audit Log", icon: "audit", module: "audit", section: "Admin" },
 ];
 
@@ -62,15 +63,17 @@ function initials(name: string) {
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   const links: NavItem[] = NAV
-    .filter((n) => !n.module || can(user.role, n.module, n.module === "settings" || n.module === "users" ? "administer" : "view"))
+    .filter((n) => !n.module || can(user, n.module, n.action ?? "view"))
     .map(({ href, label, icon, section }) => ({ href, label, icon, section }));
   const [unread, { company }] = await Promise.all([
     prisma.notification.count({ where: { userId: user.id, readAt: null } }),
     getSettings(prisma),
   ]);
   after(() => maybeScan(prisma)); // due/overdue notifications, throttled; also available via /api/cron/notifications
-  const mfaNag = (user.role === "ADMIN" || user.role === "FINANCE") && !user.mfaEnabled;
-  const canAdmin = can(user.role, "settings", "administer");
+  // Remind anyone holding sensitive rights (finalize invoices, payments, settings, users) to turn on 2FA
+  const sensitive = can(user, "invoices", "approve") || can(user, "invoices", "payments") || can(user, "settings", "administer") || can(user, "users", "edit");
+  const mfaNag = sensitive && !user.mfaEnabled;
+  const canAdmin = can(user, "settings", "administer");
 
   return (
     <div className="min-h-screen bg-canvas md:p-4">
@@ -79,7 +82,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 flex-col md:flex print:hidden">
           <div className="flex h-20 items-center px-7"><Link href="/" aria-label="Dashboard"><Logo /></Link></div>
           <div className="sidebar-scroll flex-1 overflow-y-auto py-2"><NavLinks links={links} /></div>
-          {can(user.role, "pos", "create") && (
+          {can(user, "pos", "create") && (
             <div className="m-4 rounded-2xl bg-lime-soft p-5">
               <div className="text-[17px] font-semibold leading-snug text-brand-950">Got a new order?</div>
               <p className="mt-1.5 text-xs leading-relaxed text-brand-900/75">Record the PO and its milestones — the invoices are created for you on approval.</p>
@@ -104,7 +107,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
                   <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-900 text-sm font-semibold text-white">{initials(user.name)}</span>
                   <span className="hidden text-left lg:block">
                     <span className="block max-w-[140px] truncate text-sm font-semibold leading-tight text-slate-900">{user.name}</span>
-                    <span className="block text-xs text-slate-500">{ROLE_LABELS[user.role]}</span>
+                    <span className="block max-w-[140px] truncate text-xs text-slate-500">{user.groupName}</span>
                   </span>
                   <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" aria-hidden />
                 </summary>
@@ -131,7 +134,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <div className="mx-4 mb-2 rounded-xl bg-lime-soft px-4 py-2.5 text-sm text-brand-950 md:mx-8 print:hidden">
               <span className="inline-flex flex-wrap items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-brand-700" aria-hidden />
-                Two-factor authentication is off for your {ROLE_LABELS[user.role]} account.
+                Two-factor authentication is off for your account ({user.groupName}).
                 <Link href="/account" className="font-semibold text-brand-700 underline underline-offset-2">Turn it on</Link>
               </span>
             </div>

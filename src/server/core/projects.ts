@@ -80,7 +80,7 @@ export async function peekNextProjectCode(db: Db) {
 }
 
 export async function createProject(db: Db, actor: Actor, raw: ProjectInput) {
-  if (!can(actor.role, "projects", "create")) throw new ForbiddenError("projects", "create");
+  if (!can(actor, "projects", "create")) throw new ForbiddenError("projects", "create");
   const data = projectInput.parse(raw);
   const value = parseValue(data.value);
   const { company } = await getSettings(db);
@@ -96,7 +96,7 @@ export async function createProject(db: Db, actor: Actor, raw: ProjectInput) {
 
 /** BRD §5.3: changing an approved project's value requires a reason and is audited (old/new/user/time). */
 export async function updateProject(db: Db, actor: Actor, id: string, raw: ProjectInput, reason?: string) {
-  if (!can(actor.role, "projects", "edit")) throw new ForbiddenError("projects", "edit");
+  if (!can(actor, "projects", "edit")) throw new ForbiddenError("projects", "edit");
   const data = projectInput.parse(raw);
   const value = parseValue(data.value);
   return inTx(db, async (tx) => {
@@ -129,7 +129,9 @@ export async function updateProject(db: Db, actor: Actor, id: string, raw: Proje
 export async function transitionProject(
   db: Db, actor: Actor, id: string, to: ProjectStatus, opts: { approvalDate?: string; reason?: string } = {},
 ) {
-  if (!can(actor.role, "projects", "edit") && !can(actor.role, "projects", "approve")) throw new ForbiddenError("projects", "edit");
+  if (!can(actor, "projects", "edit") && !can(actor, "projects", "approve") && !can(actor, "projects", "delete")) {
+    throw new ForbiddenError("projects", "edit");
+  }
 
   return inTx(db, async (tx) => {
     const before = await tx.project.findUniqueOrThrow({ where: { id } });
@@ -137,8 +139,9 @@ export async function transitionProject(
     if (!PROJECT_TRANSITIONS[before.status].includes(to)) {
       throw new RuleError(`Cannot move a project from ${before.status} to ${to}`);
     }
-    if (transitionApproves(before, to) && !can(actor.role, "projects", "approve")) throw new ForbiddenError("projects", "approve");
-    if (!transitionApproves(before, to) && !can(actor.role, "projects", "edit")) throw new ForbiddenError("projects", "edit");
+    // Cancelling needs "delete"; starting / completing needs "approve"; any other move needs "edit".
+    const need = to === ProjectStatus.CANCELLED ? "delete" : transitionApproves(before, to) ? "approve" : "edit";
+    if (!can(actor, "projects", need)) throw new ForbiddenError("projects", need);
     if (to === ProjectStatus.DRAFT && before.status !== ProjectStatus.CANCELLED) {
       const linked = await tx.purchaseOrder.count({ where: { projectId: id, status: { not: "CANCELLED" } } });
       if (linked) throw new RuleError("A project with purchase orders cannot go back to Draft");

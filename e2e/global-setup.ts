@@ -24,7 +24,7 @@ export default async function setup() {
   const db = new Client({ connectionString: url });
   await db.connect();
   await db.query(
-    `INSERT INTO "User" (id, name, email, "passwordHash", role, "updatedAt") VALUES ('e2e-viewer', 'Vera Viewer', $1, $2, 'VIEWER', now())`,
+    `INSERT INTO "User" (id, name, email, "passwordHash", "groupId", "updatedAt") VALUES ('e2e-viewer', 'Vera Viewer', $1, $2, 'grp_viewer', now())`,
     [E2E_VIEWER.email, await bcrypt.hash(E2E_VIEWER.password, 10)],
   );
   await db.end();

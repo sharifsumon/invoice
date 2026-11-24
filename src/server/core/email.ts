@@ -88,7 +88,7 @@ export const templateInput = z.object({
 });
 
 export async function updateInvoiceTemplate(db: Db, actor: Actor, raw: z.input<typeof templateInput>) {
-  if (!can(actor.role, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+  if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
   const data = templateInput.parse(raw);
   return inTx(db, async (tx) => {
     const before = await tx.emailTemplate.upsert({ where: { key: "invoice" }, update: {}, create: { key: "invoice", ...DEFAULT_INVOICE_TEMPLATE } });
@@ -160,7 +160,7 @@ export function parseAddresses(v: string): string[] {
  * is logged. Sending never changes the invoice's financial status (BR-15).
  */
 export async function sendInvoiceEmail(db: Db, actor: Actor, invoiceId: string, raw: SendInput, transport: MailTransport = defaultTransport()) {
-  if (!can(actor.role, "invoices", "email")) throw new ForbiddenError("invoices", "email");
+  if (!can(actor, "invoices", "email")) throw new ForbiddenError("invoices", "email");
   const data = sendInput.parse(raw);
   const inv = await db.invoice.findUniqueOrThrow({
     where: { id: invoiceId },

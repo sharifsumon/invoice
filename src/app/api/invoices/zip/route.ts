@@ -10,7 +10,7 @@ import { prisma } from "@/server/db";
 export async function POST(req: Request) {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "invoices", "export")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "invoices", "export")) return new NextResponse("Forbidden", { status: 403 });
 
   const fd = await req.formData();
   const ids = fd.getAll("ids").map(String).slice(0, 500);

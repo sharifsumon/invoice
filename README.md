@@ -27,7 +27,8 @@ prisma/migrations/             SQL migrations, including the DB guards (triggers
 prisma/seed.ts                 settings + first admin (+ optional demo data)
 src/server/core/
   money.ts                     decimal helpers, milestone allocation, amount in words
-  permissions.ts               role → module/action matrix (BRD §4)
+  permissions.ts               areas/actions a user group can be granted (BRD §4)
+  users.ts                     users and user groups
   clients.ts projects.ts       CRM, project approval, business value
   pos.ts                       PO lifecycle, approval, idempotent milestone invoice generation, PO balance
   invoices.ts                  manual invoices, draft edits, finalize/number/snapshot, cancel, reissue
@@ -83,18 +84,24 @@ npm run typecheck
 npm run lint
 ```
 
-## Roles (default permissions)
+## User groups & permissions
 
-| Role | Can |
+Every user belongs to one **user group**, and the group decides what they can do. Manage groups under **Admin → User groups** (needs *Users → Manage groups*). Each area — Clients, Projects, Purchase orders, Invoices, Users, Reports, Audit log, Settings — has View / Create / Edit / Delete plus area-specific rights (approve, finalize, payments, email, export, manage groups, manage settings). Any right in an area implies View.
+
+"Delete" never erases records (the audit trail depends on them): it **archives** a client, **cancels** a project, PO or invoice, and **deactivates** a user. A group can only be deleted when it has no users, and the app refuses any change that would leave no active user able to manage groups.
+
+Built-in groups (created from the original roles; edit them freely):
+
+| Group | Can |
 |---|---|
-| Administrator | Everything, including settings, users and numbering |
+| Administrator | Everything, including settings, users and groups |
 | Management | View everything, approve projects and POs, export |
-| Business Development | Create and edit clients, contacts and projects |
-| Project Manager | Create and edit projects |
-| Finance | POs (create, approve, cancel), invoices (create, finalize, cancel, export) |
+| Business Development | Create, edit and archive clients; create, edit and cancel projects |
+| Project Manager | Create, edit and cancel projects |
+| Finance | POs (create, edit, approve, cancel), invoices (create, edit, finalize, cancel, payments, email, export) |
 | Viewer | Read-only |
 
-The matrix is in `src/server/core/permissions.ts`. Every server action and route handler checks permissions; hiding buttons in the UI is only a convenience.
+The areas and actions are defined in `src/server/core/permissions.ts`. Every server action and route handler checks permissions; hiding buttons in the UI is only a convenience.
 
 ## Key workflows
 
@@ -118,7 +125,7 @@ monthly commercial performance · client performance · project performance.
 ### Notifications & search (BRD §5.9)
 
 - In-app notifications, shown on the bell in the sidebar, for: invoice due within 7 days, invoice overdue, PO approved, milestone approval/invoice generation failed, and invoice email failed.
-- Settings → Notification recipients sets which roles receive each event.
+- Settings → Notification recipients sets which user groups receive each event (new groups receive nothing until switched on).
 - Due and overdue checks run automatically while the app is in use (at most every 10 minutes). For guaranteed timing, call `POST /api/cron/notifications` with `Authorization: Bearer $CRON_SECRET` from a scheduler. The checks are safe to repeat, because each notification is created once per invoice and due date.
 - The search box in the sidebar searches clients, contacts, projects, POs and invoices. Results are filtered by the user's permissions.
 

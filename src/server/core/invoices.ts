@@ -48,7 +48,7 @@ function computeTotals(subtotal: ReturnType<typeof dec>, discountRaw?: string, t
 
 /** BR-07/BR-10: manual invoice within the remaining PO balance, under a PO row lock. */
 export async function createManualInvoice(db: Db, actor: Actor, raw: ManualInvoiceInput) {
-  if (!can(actor.role, "invoices", "create")) throw new ForbiddenError("invoices", "create");
+  if (!can(actor, "invoices", "create")) throw new ForbiddenError("invoices", "create");
   const data = manualInvoiceInput.parse(raw);
   const lines = computeLines(data.lines);
   const subtotal = sum(lines.map((l) => l.amount));
@@ -116,7 +116,7 @@ export const draftUpdateInput = z.object({
 
 /** Drafts are editable. Milestone invoice amounts are fixed to the milestone; only descriptions/tax/dates/notes change. */
 export async function updateDraftInvoice(db: Db, actor: Actor, id: string, raw: z.input<typeof draftUpdateInput>) {
-  if (!can(actor.role, "invoices", "edit")) throw new ForbiddenError("invoices", "edit");
+  if (!can(actor, "invoices", "edit")) throw new ForbiddenError("invoices", "edit");
   const data = draftUpdateInput.parse(raw);
   return inTx(db, async (tx) => {
     const cur = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { lineItems: true } });
@@ -285,7 +285,7 @@ export async function servedInvoicePdf(db: Db, invoiceId: string): Promise<{ pdf
  * The stored PDF is what preview, download, print and email all use.
  */
 export async function finalizeInvoice(db: Db, actor: Actor, id: string, opts: { invoiceDate?: string; dueDate?: string } = {}) {
-  if (!can(actor.role, "invoices", "approve")) throw new ForbiddenError("invoices", "approve");
+  if (!can(actor, "invoices", "approve")) throw new ForbiddenError("invoices", "approve");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
     await lockPO(tx, pre.poId);
@@ -334,7 +334,7 @@ async function finalizeInvoiceTx(tx: Tx, actor: Actor, id: string, opts: { invoi
  * outstanding only on the new invoice; balance invoices are not new billing against the PO cap.
  */
 export async function createBalanceInvoice(db: Db, actor: Actor, invoiceId: string) {
-  if (!can(actor.role, "invoices", "create") || !can(actor.role, "invoices", "approve")) throw new ForbiddenError("invoices", "create");
+  if (!can(actor, "invoices", "create") || !can(actor, "invoices", "approve")) throw new ForbiddenError("invoices", "create");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
     await lockPO(tx, pre.poId);
@@ -371,7 +371,7 @@ export async function createBalanceInvoice(db: Db, actor: Actor, invoiceId: stri
 
 /** BR-09: cancelling releases the PO allocation; the record and its documents stay for audit. */
 export async function cancelInvoice(db: Db, actor: Actor, id: string, reason: string) {
-  if (!can(actor.role, "invoices", "cancel")) throw new ForbiddenError("invoices", "cancel");
+  if (!can(actor, "invoices", "delete")) throw new ForbiddenError("invoices", "delete");
   if (!reason?.trim()) throw new RuleError("A cancellation reason is required");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
@@ -399,8 +399,8 @@ export async function cancelInvoice(db: Db, actor: Actor, id: string, reason: st
 
 /** Controlled correction: cancel the invoice and create a new draft copy (marked as a revision). */
 export async function cancelAndReissue(db: Db, actor: Actor, id: string, reason: string) {
-  if (!can(actor.role, "invoices", "cancel") || !can(actor.role, "invoices", "create")) {
-    throw new ForbiddenError("invoices", "cancel");
+  if (!can(actor, "invoices", "delete") || !can(actor, "invoices", "create")) {
+    throw new ForbiddenError("invoices", "delete");
   }
   if (!reason?.trim()) throw new RuleError("A reason is required to reissue an invoice");
   return inTx(db, async (tx) => {

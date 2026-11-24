@@ -31,13 +31,13 @@ export default async function POsPage({ searchParams }: PageProps<"/pos">) {
     by: ["poId"], where: { poId: { in: pos.map((p) => p.id) }, status: { not: "CANCELLED" }, kind: { not: "BALANCE" } },
     _sum: { subtotal: true, discount: true },
   });
-  const canInvoice = can(user.role, "invoices", "create");
+  const canInvoice = can(user, "invoices", "create");
   const invoiced = new Map(sums.map((s) => [s.poId, s._sum.subtotal!.minus(s._sum.discount!)]));
 
   return (
     <>
       <PageHeader title="Purchase Orders" subtitle={`${pos.length} shown`}
-        actions={can(user.role, "pos", "create") && <LinkButton href="/pos/new">New PO</LinkButton>} />
+        actions={can(user, "pos", "create") && <LinkButton href="/pos/new">New PO</LinkButton>} />
       <Card>
         <form className="mb-4 flex flex-wrap gap-2">
           <Input name="q" defaultValue={q} placeholder="Search PO, project or client…" className="max-w-xs" />

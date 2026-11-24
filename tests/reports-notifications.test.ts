@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { NotificationEvent, PaymentMethod, POStatus, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { NotificationEvent, PaymentMethod, POStatus, ProjectStatus } from "@/generated/prisma/enums";
 import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject } from "@/server/core/projects";
 import { approvePO, createPO, transitionPO, updatePO } from "@/server/core/pos";
@@ -14,7 +14,7 @@ import { globalSearch } from "@/server/core/search";
 import { addDays, today, type Actor } from "@/server/core/common";
 import { dec } from "@/server/core/money";
 import { getSettings } from "@/server/core/settings";
-import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, groupId, makeActor, Role, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;
@@ -138,7 +138,7 @@ describe("Notifications (BRD §5.9)", () => {
     await approvePO(db, finance, po1.id);
     expect(await db.notification.count({ where: { userId: pm.id, event: NotificationEvent.PO_APPROVED, link: `/pos/${po1.id}` } })).toBe(1);
 
-    await setNotificationSetting(db, admin, NotificationEvent.PO_APPROVED, Role.PROJECT_MANAGER, false);
+    await setNotificationSetting(db, admin, NotificationEvent.PO_APPROVED, await groupId(db, Role.PROJECT_MANAGER), false);
     const po2 = await createPO(db, finance, { poNumber: uid("NPO"), projectId: p.id, poDate: "2026-04-01", value: "100" });
     await approvePO(db, finance, po2.id);
     expect(await db.notification.count({ where: { userId: pm.id, link: `/pos/${po2.id}` } })).toBe(0);

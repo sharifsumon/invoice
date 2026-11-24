@@ -9,7 +9,7 @@ import { parseReportFilters } from "@/server/report-params";
 export async function GET(req: Request, ctx: RouteContext<"/api/reports/[id]">) {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "reports", "export")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "reports", "export")) return new NextResponse("Forbidden", { status: 403 });
   const { id } = await ctx.params;
   const def = getReport(id);
   if (!def) return new NextResponse("Not found", { status: 404 });

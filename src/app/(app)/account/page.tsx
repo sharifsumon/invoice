@@ -1,6 +1,5 @@
 import QRCode from "qrcode";
 import { requireUser } from "@/server/auth";
-import { ROLE_LABELS } from "@/server/core/permissions";
 import { PASSWORD_RULE } from "@/server/core/settings";
 import { otpauthUrl } from "@/server/core/totp";
 import { prisma } from "@/server/db";
@@ -21,7 +20,7 @@ export default async function AccountPage() {
       <PageHeader title="My account" />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Profile">
-          <DL items={[["Name", u.name], ["Email", u.email], ["Role", ROLE_LABELS[u.role]],
+          <DL items={[["Name", u.name], ["Email", u.email], ["Group", me.groupName],
             ["Last sign-in", u.lastLoginAt ? u.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "—"]]} />
           <form action={signOutEverywhereAction} className="mt-5">
             <button className={buttonClass("secondary", "sm")}>Sign out of all devices</button>

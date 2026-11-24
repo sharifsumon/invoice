@@ -33,7 +33,7 @@ function sniffReceipt(buf: Buffer): { mime: string; ext: string } | null {
  * independently rejects overpayment and derives amountPaid + status (BR-11).
  */
 export async function recordPayment(db: Db, actor: Actor, invoiceId: string, raw: PaymentInput, receipt?: ReceiptFile | null) {
-  if (!can(actor.role, "invoices", "edit")) throw new ForbiddenError("invoices", "edit");
+  if (!can(actor, "invoices", "payments")) throw new ForbiddenError("invoices", "payments");
   const data = paymentInput.parse(raw);
   let amount;
   try { amount = money(dec(data.amount)); } catch { throw new RuleError("Amount must be a number"); }
@@ -81,7 +81,7 @@ export async function recordPayment(db: Db, actor: Actor, invoiceId: string, raw
 
 /** Correction: reverse (never delete) a payment, with a reason. Status is re-derived by the DB trigger. */
 export async function reversePayment(db: Db, actor: Actor, paymentId: string, reason: string) {
-  if (!can(actor.role, "invoices", "cancel")) throw new ForbiddenError("invoices", "cancel");
+  if (!can(actor, "invoices", "payments")) throw new ForbiddenError("invoices", "payments");
   if (!reason?.trim()) throw new RuleError("A reason is required to reverse a payment");
   return inTx(db, async (tx) => {
     const pre = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });

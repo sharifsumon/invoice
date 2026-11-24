@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Role } from "@/generated/prisma/enums";
 import { createClient, updateClient, upsertContact } from "@/server/core/clients";
 import type { Actor } from "@/server/core/common";
-import { cl, ct, makeActor, testDb, uid } from "./helpers";
+import { cl, ct, makeActor, Role, testDb, uid } from "./helpers";
 
 const db = testDb();
 let bd: Actor;

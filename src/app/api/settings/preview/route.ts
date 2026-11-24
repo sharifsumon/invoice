@@ -11,7 +11,7 @@ import { prisma } from "@/server/db";
 export async function GET() {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "settings", "view")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "settings", "view")) return new NextResponse("Forbidden", { status: 403 });
   const { company: c, template: t } = await getSettings(prisma);
   const subtotal = dec("12500.00");
   const rate = t.showTax ? t.defaultTaxRate : dec(0);

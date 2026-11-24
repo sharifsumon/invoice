@@ -46,7 +46,7 @@ export const rateInput = z.object({
 });
 
 export async function addRate(db: Db, actor: Actor, raw: z.input<typeof rateInput>) {
-  if (!can(actor.role, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+  if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
   const d = rateInput.parse(raw);
   if (d.fromCurrency === d.toCurrency) throw new RuleError("From and to currencies must differ");
   let rate;
@@ -62,7 +62,7 @@ export async function addRate(db: Db, actor: Actor, raw: z.input<typeof rateInpu
 }
 
 export async function deleteRate(db: Db, actor: Actor, id: string) {
-  if (!can(actor.role, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+  if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
   return inTx(db, async (tx) => {
     const r = await tx.exchangeRate.delete({ where: { id } });
     await audit(tx, actor, "fx.rate_deleted", "ExchangeRate", id, { before: r });

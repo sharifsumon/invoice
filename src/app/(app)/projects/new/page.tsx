@@ -13,7 +13,7 @@ export default async function NewProjectPage({ searchParams }: PageProps<"/proje
   const sp = await searchParams;
   const [clients, managers, { company }, nextCode] = await Promise.all([
     prisma.client.findMany({ where: { archived: false }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.user.findMany({ where: { active: true, role: { in: ["PROJECT_MANAGER", "ADMIN", "MANAGEMENT"] } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     getSettings(prisma),
     peekNextProjectCode(prisma),
   ]);

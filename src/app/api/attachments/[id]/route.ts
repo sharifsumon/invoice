@@ -12,7 +12,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/attachments/[id
   const a = await prisma.attachment.findUnique({ where: { id } });
   if (!a) return new NextResponse("Not found", { status: 404 });
   const mod = ATTACHABLE[a.entityType];
-  if (!mod || !can(user.role, mod, "view")) return new NextResponse("Forbidden", { status: 403 });
+  if (!mod || !can(user, mod, "view")) return new NextResponse("Forbidden", { status: 403 });
   const data = await loadFile(a.filePath);
   const inline = a.mimeType === "application/pdf" || a.mimeType.startsWith("image/");
   return new NextResponse(new Uint8Array(data), {

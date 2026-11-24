@@ -1,6 +1,5 @@
-import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { NumberReset, Role } from "@/generated/prisma/enums";
+import { NumberReset } from "@/generated/prisma/enums";
 import { audit, inTx, type Actor, type Db } from "./common";
 import { dec } from "./money";
 import { can, ForbiddenError, RuleError } from "./permissions";
@@ -37,7 +36,7 @@ export const templateInput = z.object({
 });
 
 function admin(actor: Actor) {
-  if (!can(actor.role, "settings", "administer")) throw new ForbiddenError("settings", "administer");
+  if (!can(actor, "settings", "administer")) throw new ForbiddenError("settings", "administer");
 }
 
 export async function getSettings(db: Db) {
@@ -96,53 +95,5 @@ export async function removeLogo(db: Db, actor: Actor) {
   });
 }
 
-// ───────────── Users ─────────────
-
-export const PASSWORD_RULE = "At least 10 characters, with a letter and a number";
-export function checkPassword(pw: string) {
-  if (pw.length < 10 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) throw new RuleError(`Password: ${PASSWORD_RULE}`);
-}
-
-export const userInput = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().trim().toLowerCase().email(),
-  role: z.nativeEnum(Role),
-  password: z.string().optional(),
-});
-
-export async function createUser(db: Db, actor: Actor, raw: z.input<typeof userInput>) {
-  if (!can(actor.role, "users", "administer")) throw new ForbiddenError("users", "administer");
-  const data = userInput.parse(raw);
-  checkPassword(data.password ?? "");
-  return inTx(db, async (tx) => {
-    const u = await tx.user.create({
-      data: { name: data.name, email: data.email, role: data.role, passwordHash: await bcrypt.hash(data.password!, 12) },
-    });
-    await audit(tx, actor, "user.created", "User", u.id, { after: { name: u.name, email: u.email, role: u.role } });
-    return u;
-  });
-}
-
-export async function updateUser(db: Db, actor: Actor, id: string, raw: z.input<typeof userInput> & { active: boolean }) {
-  if (!can(actor.role, "users", "administer")) throw new ForbiddenError("users", "administer");
-  const data = userInput.parse(raw);
-  if (id === actor.id && (!raw.active || data.role !== Role.ADMIN)) throw new RuleError("You cannot deactivate or demote your own account");
-  if (data.password) checkPassword(data.password);
-  return inTx(db, async (tx) => {
-    const before = await tx.user.findUniqueOrThrow({ where: { id }, select: { name: true, email: true, role: true, active: true } });
-    // Password reset, deactivation or role change revokes all of that user's existing sessions.
-    const revoke = !!data.password || before.active !== raw.active || before.role !== data.role;
-    const u = await tx.user.update({
-      where: { id },
-      data: {
-        name: data.name, email: data.email, role: data.role, active: raw.active,
-        ...(data.password ? { passwordHash: await bcrypt.hash(data.password, 12) } : {}),
-        ...(revoke ? { sessionVersion: { increment: 1 } } : {}),
-      },
-    });
-    await audit(tx, actor, "user.updated", "User", id, {
-      before, after: { name: u.name, email: u.email, role: u.role, active: u.active, passwordChanged: !!data.password },
-    });
-    return u;
-  });
-}
+// Users and groups live in ./users (re-exported for existing imports).
+export { checkPassword, PASSWORD_RULE, createUser, updateUser, userInput } from "./users";

@@ -35,7 +35,7 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clients"
   return (
     <>
       <PageHeader title="Clients" subtitle={`${clients.length} shown`}
-        actions={can(user.role, "clients", "create") && <LinkButton href="/clients/new">New client</LinkButton>} />
+        actions={can(user, "clients", "create") && <LinkButton href="/clients/new">New client</LinkButton>} />
       <Card>
         <form className="mb-4 flex flex-wrap gap-2">
           <Input name="q" defaultValue={q} placeholder="Search name, email or contact…" className="max-w-xs" />

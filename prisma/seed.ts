@@ -9,7 +9,8 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { ProjectStatus, Role } from "../src/generated/prisma/enums";
+import { ProjectStatus } from "../src/generated/prisma/enums";
+import { loadActor } from "../src/server/core/common";
 import { createClient } from "../src/server/core/clients";
 import { createProject, transitionProject } from "../src/server/core/projects";
 import { approvePO, createPO } from "../src/server/core/pos";
@@ -37,16 +38,17 @@ async function main() {
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!email || !password) throw new Error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD in .env");
   checkPassword(password);
+  const adminGroup = await db.userGroup.findUniqueOrThrow({ where: { key: "ADMIN" } }); // created by the user_groups migration
   const admin = await db.user.upsert({
     where: { email }, update: {},
-    create: { email, name: "Administrator", role: Role.ADMIN, passwordHash: await bcrypt.hash(password, 12) },
+    create: { email, name: "Administrator", groupId: adminGroup.id, passwordHash: await bcrypt.hash(password, 12) },
   });
   console.log(`Admin account ready: ${email}`);
 
   if (process.env.SEED_DEMO !== "1") return;
   if (await db.client.count()) { console.log("Demo skipped — clients already exist."); return; }
 
-  const actor = { id: admin.id, role: admin.role, name: admin.name };
+  const actor = await loadActor(db, admin.id);
   const acme = await createClient(db, actor, { name: "Acme Retail", legalName: "Acme Retail Pvt Ltd", country: "United Kingdom", industry: "Retail", status: "IN_PROGRESS" },
     [{ firstName: "Priya", lastName: "Shah", designation: "Finance Manager", email: "priya@acme.example", phone: "+44 20 7946 0101", isPrimary: true }]);
   const nova = await createClient(db, actor, { name: "Nova Health", country: "Germany", industry: "Healthcare", status: "ONBOARDED" },

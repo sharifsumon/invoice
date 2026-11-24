@@ -149,6 +149,38 @@ test("role-based access: viewer is read-only", async ({ page }) => {
   await expect(page.getByRole("link", { name: "New client" })).toHaveCount(0);
   const exp = await page.request.get("/api/invoices/export");
   expect(exp.status()).toBe(403);
+  await expect(page.getByRole("link", { name: "User groups" })).toHaveCount(0);
+  await page.goto("/users/groups");
+  await expect(page).toHaveURL(/denied=1/);
+});
+
+test("user groups: create a group with chosen permissions", async ({ page }) => {
+  await login(page, E2E_ADMIN);
+  await page.getByRole("link", { name: "User groups" }).click();
+  await expect(page.getByRole("link", { name: "Administrator" })).toBeVisible();
+  await page.getByRole("link", { name: "New group" }).click();
+  await page.getByLabel("Group name *").fill("Sales team");
+  await page.getByLabel("clients — Create").check();
+  await page.getByLabel("clients — Edit").check();
+  await page.getByLabel("projects — Create").check();
+  await page.getByRole("button", { name: "Create group" }).click();
+  await expect(page.getByText("Group created")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sales team" })).toBeVisible();
+  await expect(page.getByLabel("clients — Edit")).toBeChecked();
+  await expect(page.getByLabel("pos — Create")).not.toBeChecked();
+
+  // Users page: form hidden until "Add user"; new users can be put in the group
+  await page.goto("/users");
+  await expect(page.getByRole("button", { name: "Create user" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Add user" }).click();
+  await page.getByLabel("Name *").fill("Sally Sales");
+  await page.getByLabel("Email *").fill("sally@e2e.local");
+  await page.getByLabel("Group *").selectOption({ label: "Sales team" });
+  await page.getByLabel("Initial password *").fill("Sally-pass-12345");
+  await page.getByRole("button", { name: "Create user" }).click();
+  await expect(page.getByText("User created")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Sally Sales" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create user" })).toHaveCount(0);
 });
 
 test("two-factor sign-in", async ({ page, context }) => {

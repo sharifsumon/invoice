@@ -8,7 +8,7 @@ import { prisma } from "@/server/db";
 export async function GET(_req: Request, ctx: RouteContext<"/api/payments/[id]/receipt">) {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "invoices", "view")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "invoices", "view")) return new NextResponse("Forbidden", { status: 403 });
   const { id } = await ctx.params;
   const p = await prisma.payment.findUnique({ where: { id } });
   if (!p?.receiptPath || !p.receiptMime) return new NextResponse("Not found", { status: 404 });

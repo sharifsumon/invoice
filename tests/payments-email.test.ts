@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { EmailStatus, InvoiceKind, InvoiceStatus, PaymentMethod, ProjectStatus, Role } from "@/generated/prisma/enums";
+import { EmailStatus, InvoiceKind, InvoiceStatus, PaymentMethod, ProjectStatus } from "@/generated/prisma/enums";
 import { createClient } from "@/server/core/clients";
 import { createProject, transitionProject } from "@/server/core/projects";
 import { approvePO, createPO, poBalance } from "@/server/core/pos";
@@ -8,7 +8,7 @@ import { recordPayment, reversePayment } from "@/server/core/payments";
 import { composeInvoiceEmail, merge, sendInvoiceEmail, type MailTransport } from "@/server/core/email";
 import { dec, outstandingOf } from "@/server/core/money";
 import type { Actor } from "@/server/core/common";
-import { baseSettings, cl, ct, makeActor, testDb, uid } from "./helpers";
+import { baseSettings, cl, ct, makeActor, Role, testDb, uid } from "./helpers";
 
 const db = testDb();
 let admin: Actor;

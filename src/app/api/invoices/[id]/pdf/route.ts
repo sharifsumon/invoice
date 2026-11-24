@@ -8,7 +8,7 @@ import { prisma } from "@/server/db";
 export async function GET(req: Request, ctx: RouteContext<"/api/invoices/[id]/pdf">) {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "invoices", "view")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "invoices", "view")) return new NextResponse("Forbidden", { status: 403 });
   const { id } = await ctx.params;
   const exists = await prisma.invoice.findUnique({ where: { id }, select: { id: true } });
   if (!exists) return new NextResponse("Not found", { status: 404 });

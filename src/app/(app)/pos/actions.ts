@@ -48,7 +48,7 @@ export async function createPOAction(_: ActionState, fd: FormData): Promise<Acti
   let id = "";
   let flash = "";
   const res = await runAction(async () => {
-    if (approveNow && !can(actor.role, "pos", "approve")) throw new ForbiddenError("pos", "approve");
+    if (approveNow && !can(actor, "pos", "approve")) throw new ForbiddenError("pos", "approve");
     id = (await createPO(prisma, actor, fields(fd))).id;
     if (approveNow) {
       try {

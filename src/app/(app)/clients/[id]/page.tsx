@@ -28,7 +28,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
     },
   });
   if (!client) notFound();
-  const canEdit = can(user.role, "clients", "edit");
+  const canEdit = can(user, "clients", "edit");
   const valid = client.invoices.filter((i) => i.status !== "CANCELLED" && i.status !== "DRAFT");
   const outstanding = groupSum(valid, (i) => i.currency, (i) => outstandingOf(i));
   const invoiced = groupSum(valid.filter((i) => i.kind !== "BALANCE"), (i) => i.currency, (i) => i.total);
@@ -42,8 +42,8 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
         title={<span className="flex items-center gap-3">{client.name} <StatusBadge status={client.status} />{client.archived && <Badge>Archived</Badge>}</span>}
         subtitle={client.legalName}
         actions={<>
-          {can(user.role, "projects", "create") && !client.archived && <LinkButton href={`/projects/new?clientId=${client.id}`} variant="secondary">New project</LinkButton>}
-          {canEdit && <ActionButton action={archiveClientAction.bind(null, client.id, !client.archived)} label={client.archived ? "Restore" : "Archive"}
+          {can(user, "projects", "create") && !client.archived && <LinkButton href={`/projects/new?clientId=${client.id}`} variant="secondary">New project</LinkButton>}
+          {can(user, "clients", "delete") && <ActionButton action={archiveClientAction.bind(null, client.id, !client.archived)} label={client.archived ? "Restore" : "Archive"}
             confirm={client.archived ? undefined : "Archive this client? It will be hidden from active lists but all records are kept."} />}
         </>}
       />

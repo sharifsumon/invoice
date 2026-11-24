@@ -40,16 +40,16 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   ]);
   const isDraft = inv.status === "DRAFT";
   const isCancelled = inv.status === "CANCELLED";
-  const canEdit = isDraft && can(user.role, "invoices", "edit");
+  const canEdit = isDraft && can(user, "invoices", "edit");
   const poApproved = isPoApproved(inv.po.status);
   const pendingApproval = isDraft && !poApproved;
-  const canFinalize = isDraft && poApproved && can(user.role, "invoices", "approve");
-  const canApprovePO = pendingApproval && PO_TRANSITIONS[inv.po.status].includes("APPROVED") && can(user.role, "pos", "approve");
+  const canFinalize = isDraft && poApproved && can(user, "invoices", "approve");
+  const canApprovePO = pendingApproval && PO_TRANSITIONS[inv.po.status].includes("APPROVED") && can(user, "pos", "approve");
   const siblings = pendingApproval ? await prisma.invoice.count({ where: { poId: inv.poId, status: "DRAFT", kind: "MILESTONE" } }) : 0;
-  const canCancel = !isCancelled && can(user.role, "invoices", "cancel") && inv.amountPaid.eq(0);
+  const canCancel = !isCancelled && can(user, "invoices", "delete") && inv.amountPaid.eq(0);
   const outstanding = isCancelled ? dec(0) : outstandingOf(inv);
   const carriedTo = inv.balanceInvoices[0];
-  const canBalance = can(user.role, "invoices", "create") && can(user.role, "invoices", "approve");
+  const canBalance = can(user, "invoices", "create") && can(user, "invoices", "approve");
   const canCreateBalance = canBalance && inv.status === "PARTIALLY_PAID" && outstanding.gt(0) && !carriedTo;
   const pdfUrl = `/api/invoices/${inv.id}/pdf`;
   const ownAllocation = isCancelled ? 0 : inv.subtotal.minus(inv.discount);
@@ -73,7 +73,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           <a href={pdfUrl} target="_blank" className={buttonClass("secondary")}>{isDraft ? "Preview PDF" : "Open PDF"}</a>
           {!isDraft && <a href={`${pdfUrl}?download=1`} className={buttonClass("secondary")}>Download</a>}
           {!isDraft && <PrintButton url={pdfUrl} />}
-          {!isDraft && !isCancelled && can(user.role, "invoices", "email") && <a href="#email" className={buttonClass("primary")}>Email invoice</a>}
+          {!isDraft && !isCancelled && can(user, "invoices", "email") && <a href="#email" className={buttonClass("primary")}>Email invoice</a>}
         </>}
       />
 
@@ -177,7 +177,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           )}
 
           {!isDraft && !isCancelled && (
-            <PaymentsCard inv={inv} payments={inv.payments} canRecord={can(user.role, "invoices", "edit")} canReverse={can(user.role, "invoices", "cancel")}
+            <PaymentsCard inv={inv} payments={inv.payments} canRecord={can(user, "invoices", "payments")} canReverse={can(user, "invoices", "payments")}
               canBalance={canBalance && !carriedTo} />
           )}
           {isCancelled && inv.payments.length > 0 && (
@@ -185,7 +185,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           )}
 
           {!isDraft && (
-            <EmailCard inv={inv} logs={inv.emailLogs} canSend={can(user.role, "invoices", "email")} />
+            <EmailCard inv={inv} logs={inv.emailLogs} canSend={can(user, "invoices", "email")} />
           )}
 
           {!isDraft && (
@@ -215,7 +215,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           {canCancel && (
             <Card title="Corrections">
               <div className="space-y-3">
-                {!isDraft && can(user.role, "invoices", "create") && (
+                {!isDraft && can(user, "invoices", "create") && (
                   <ActionButton action={reissueAction.bind(null, inv.id)} label="Cancel & reissue" reasonPrompt="What needs correcting?" />
                 )}
                 <ActionButton action={cancelAction.bind(null, inv.id)} label={isDraft ? "Cancel draft" : "Cancel invoice"} variant="danger"

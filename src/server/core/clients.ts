@@ -37,8 +37,8 @@ export const contactInput = z
   .transform((c) => ({ ...c, name: `${c.firstName} ${c.lastName}` }));
 export type ContactInput = z.input<typeof contactInput>;
 
-function need(actor: Actor, action: "create" | "edit") {
-  if (!can(actor.role, "clients", action)) throw new ForbiddenError("clients", action);
+function need(actor: Actor, action: "create" | "edit" | "delete") {
+  if (!can(actor, "clients", action)) throw new ForbiddenError("clients", action);
 }
 
 /** A new client must be created with its primary contact (first/last name, email, phone). */
@@ -76,7 +76,7 @@ export async function updateClient(db: Db, actor: Actor, id: string, raw: Client
 
 /** BRD §5.1: no hard delete — archive instead. */
 export async function setClientArchived(db: Db, actor: Actor, id: string, archived: boolean) {
-  need(actor, "edit");
+  need(actor, "delete"); // the "Delete" permission archives / restores (records are never erased)
   return inTx(db, async (tx) => {
     const client = await tx.client.update({
       where: { id },

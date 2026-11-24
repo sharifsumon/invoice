@@ -5,7 +5,7 @@ import { jwtVerify, SignJWT } from "jose";
 import { cache } from "react";
 import { prisma } from "./db";
 import type { Actor } from "./core/common";
-import { can, type Action, type Module } from "./core/permissions";
+import { can, normalizePerms, type Action, type Module } from "./core/permissions";
 
 export const SESSION_COOKIE = "crm_session";
 export const MFA_COOKIE = "crm_mfa";
@@ -65,24 +65,30 @@ export const getUser = cache(async () => {
     if (payload.typ !== "session") return null;
     const user = await prisma.user.findUnique({
       where: { id: String(payload.sub) },
-      select: { id: true, name: true, email: true, role: true, active: true, sessionVersion: true, mfaEnabled: true },
+      select: {
+        id: true, name: true, email: true, active: true, sessionVersion: true, mfaEnabled: true,
+        group: { select: { id: true, name: true, permissions: true } },
+      },
     });
     if (!user?.active || user.sessionVersion !== Number(payload.sv)) return null;
-    return user;
+    const { group, ...rest } = user;
+    return { ...rest, groupId: group.id, groupName: group.name, perms: normalizePerms(group.permissions) };
   } catch {
     return null;
   }
 });
 
-export async function requireUser(): Promise<Actor & { email: string; mfaEnabled: boolean }> {
+export type SessionUser = Actor & { email: string; mfaEnabled: boolean };
+
+export async function requireUser(): Promise<SessionUser> {
   const u = await getUser();
   if (!u) redirect("/login");
-  return { id: u.id, name: u.name, role: u.role, email: u.email, mfaEnabled: u.mfaEnabled };
+  return { id: u.id, name: u.name, groupId: u.groupId, groupName: u.groupName, perms: u.perms, email: u.email, mfaEnabled: u.mfaEnabled };
 }
 
 /** Page-level guard: send users without the permission back to the dashboard. */
 export async function requirePermission(module: Module, action: Action = "view") {
   const u = await requireUser();
-  if (!can(u.role, module, action)) redirect("/?denied=1");
+  if (!can(u, module, action)) redirect("/?denied=1");
   return u;
 }

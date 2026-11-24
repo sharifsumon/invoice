@@ -13,7 +13,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const user = await requireUser();
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q : "";
-  const hits = (await globalSearch(prisma, q)).filter((h) => can(user.role, MODULE[h.type], "view"));
+  const hits = (await globalSearch(prisma, q)).filter((h) => can(user, MODULE[h.type], "view"));
   return (
     <>
       <PageHeader title="Search" subtitle="Clients, contacts, projects, purchase orders and invoices" />

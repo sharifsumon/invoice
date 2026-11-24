@@ -11,7 +11,7 @@ import { outstandingOf } from "@/server/core/money";
 export async function GET(req: Request) {
   const user = await getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!can(user.role, "invoices", "export")) return new NextResponse("Forbidden", { status: 403 });
+  if (!can(user, "invoices", "export")) return new NextResponse("Forbidden", { status: 403 });
 
   const url = new URL(req.url);
   const sp = Object.fromEntries(url.searchParams.entries());

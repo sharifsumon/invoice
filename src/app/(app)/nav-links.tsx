@@ -3,24 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Building2, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, Users, type LucideIcon,
+  BarChart3, Building2, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, ShieldCheck, Users, type LucideIcon,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 
 export const NAV_ICONS = {
   dashboard: LayoutDashboard, clients: Building2, projects: FolderKanban, pos: FileText, invoices: ReceiptText,
-  reports: BarChart3, settings: Settings, users: Users, audit: ScrollText,
+  reports: BarChart3, settings: Settings, users: Users, groups: ShieldCheck, audit: ScrollText,
 } satisfies Record<string, LucideIcon>;
 export type NavIcon = keyof typeof NAV_ICONS;
 export interface NavItem { href: string; label: string; icon: NavIcon; section?: string }
 
-function isActive(path: string, href: string) {
+function matches(path: string, href: string) {
   return href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
+}
+
+/** The most specific nav item for the path (so /users/groups highlights "User groups", not "Users"). */
+function activeHref(path: string, links: NavItem[]) {
+  return [...links].sort((a, b) => b.href.length - a.href.length).find((l) => matches(path, l.href))?.href;
 }
 
 /** Sidebar navigation: a flat list, sections separated by a little space. */
 export function NavLinks({ links }: { links: NavItem[] }) {
   const path = usePathname();
+  const current = activeHref(path, links);
   const sections = [...new Set(links.map((l) => l.section ?? ""))];
   return (
     <nav className="flex flex-col gap-4 px-4" aria-label="Main">
@@ -28,7 +34,7 @@ export function NavLinks({ links }: { links: NavItem[] }) {
         <ul key={s} className="space-y-1" aria-label={s || undefined}>
           {links.filter((l) => (l.section ?? "") === s).map((l) => {
             const Icon = NAV_ICONS[l.icon];
-            const active = isActive(path, l.href);
+            const active = l.href === current;
             return (
               <li key={l.href}>
                 <Link href={l.href} aria-current={active ? "page" : undefined}
@@ -49,11 +55,12 @@ export function NavLinks({ links }: { links: NavItem[] }) {
 /** Compact horizontal nav for small screens. */
 export function MobileNav({ links }: { links: NavItem[] }) {
   const path = usePathname();
+  const current = activeHref(path, links);
   return (
     <nav className="flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none]" aria-label="Main">
       {links.map((l) => {
         const Icon = NAV_ICONS[l.icon];
-        const active = isActive(path, l.href);
+        const active = l.href === current;
         return (
           <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined}
             className={cx("flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap",
@@ -71,7 +78,7 @@ const EXTRA: Record<string, string> = { "/account": "My account", "/notification
 /** Section title + breadcrumb for the top bar ("Projects" / Dashboard › Projects). */
 export function CurrentSection({ links }: { links: NavItem[] }) {
   const path = usePathname();
-  const match = [...links].sort((a, b) => b.href.length - a.href.length).find((l) => isActive(path, l.href));
+  const match = links.find((l) => l.href === activeHref(path, links));
   const label = match?.label ?? Object.entries(EXTRA).find(([k]) => path.startsWith(k))?.[1] ?? "";
   const sectionHref = match?.href ?? path;
   const deeper = path !== sectionHref && path !== "/";

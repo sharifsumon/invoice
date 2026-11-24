@@ -1,14 +1,22 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
-import type { Role } from "@/generated/prisma/enums";
-import { RuleError } from "./permissions";
+import { normalizePerms, RuleError, type Perms } from "./permissions";
 
 export type Db = PrismaClient;
 export type Tx = Prisma.TransactionClient;
 
+/** Who is acting, with the permissions of their user group. */
 export interface Actor {
   id: string;
-  role: Role;
   name: string;
+  groupId: string;
+  groupName: string;
+  perms: Perms;
+}
+
+/** Load a user as an Actor (group + permissions). */
+export async function loadActor(db: Db | Tx, userId: string): Promise<Actor> {
+  const u = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true, group: { select: { id: true, name: true, permissions: true } } } });
+  return { id: u.id, name: u.name, groupId: u.group.id, groupName: u.group.name, perms: normalizePerms(u.group.permissions) };
 }
 
 /** Convert Decimals/Dates to plain JSON for audit snapshots. */

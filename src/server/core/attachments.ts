@@ -25,7 +25,7 @@ export function sniffAttachment(buf: Buffer, name: string): { mime: string; ext:
 export async function addAttachment(db: Db, actor: Actor, entityType: string, entityId: string, file: { name: string; data: Buffer }) {
   const mod = ATTACHABLE[entityType];
   if (!mod) throw new RuleError("Attachments are not supported here");
-  if (!can(actor.role, mod, "edit")) throw new ForbiddenError(mod, "edit");
+  if (!can(actor, mod, "edit")) throw new ForbiddenError(mod, "edit");
   if (!file.data.length) throw new RuleError("Choose a file");
   if (file.data.length > ATTACHMENT_MAX) throw new RuleError("Attachments must be 10 MB or smaller");
   const kind = sniffAttachment(file.data, file.name);
@@ -49,7 +49,7 @@ export async function addAttachment(db: Db, actor: Actor, entityType: string, en
 export async function removeAttachment(db: Db, actor: Actor, id: string, reason: string) {
   const a = await db.attachment.findUniqueOrThrow({ where: { id } });
   const mod = ATTACHABLE[a.entityType];
-  if (!mod || !can(actor.role, mod, "edit")) throw new ForbiddenError(mod ?? "pos", "edit");
+  if (!mod || !can(actor, mod, "edit")) throw new ForbiddenError(mod ?? "pos", "edit");
   if (!reason?.trim()) throw new RuleError("A reason is required to remove an attachment");
   return inTx(db, async (tx) => {
     await tx.attachment.delete({ where: { id } });

@@ -56,7 +56,7 @@ function buildMilestones(value: InstanceType<typeof D>, ms: z.output<typeof mile
 }
 
 export async function createPO(db: Db, actor: Actor, raw: POInput) {
-  if (!can(actor.role, "pos", "create")) throw new ForbiddenError("pos", "create");
+  if (!can(actor, "pos", "create")) throw new ForbiddenError("pos", "create");
   const data = poInput.parse(raw);
   const value = parsePOValue(data.value);
   return inTx(db, async (tx) => {
@@ -89,7 +89,7 @@ export async function createPO(db: Db, actor: Actor, raw: POInput) {
 }
 
 export async function updatePO(db: Db, actor: Actor, id: string, raw: POInput) {
-  if (!can(actor.role, "pos", "edit")) throw new ForbiddenError("pos", "edit");
+  if (!can(actor, "pos", "edit")) throw new ForbiddenError("pos", "edit");
   const data = poInput.parse(raw);
   const value = parsePOValue(data.value);
   return inTx(db, async (tx) => {
@@ -145,8 +145,8 @@ export { PO_TRANSITIONS };
 
 export async function transitionPO(db: Db, actor: Actor, id: string, to: POStatus, reason?: string) {
   if (to === POStatus.APPROVED) return approvePO(db, actor, id);
-  const perm = to === POStatus.REJECTED ? "approve" : to === POStatus.CANCELLED ? "cancel" : "edit";
-  if (!can(actor.role, "pos", perm)) throw new ForbiddenError("pos", perm);
+  const perm = to === POStatus.REJECTED ? "approve" : to === POStatus.CANCELLED ? "delete" : "edit";
+  if (!can(actor, "pos", perm)) throw new ForbiddenError("pos", perm);
   return inTx(db, async (tx) => {
     await lockPO(tx, id);
     const before = await tx.purchaseOrder.findUniqueOrThrow({ where: { id } });
@@ -177,7 +177,7 @@ export async function transitionPO(db: Db, actor: Actor, id: string, to: POStatu
  * all in one transaction. Any failure rolls the whole approval back.
  */
 export async function approvePO(db: Db, actor: Actor, id: string) {
-  if (!can(actor.role, "pos", "approve")) throw new ForbiddenError("pos", "approve");
+  if (!can(actor, "pos", "approve")) throw new ForbiddenError("pos", "approve");
   try {
     const r = await approvePOTx(db, actor, id);
     await notify(db, NotificationEvent.PO_APPROVED, {
@@ -299,7 +299,7 @@ export async function cancelPendingInvoicesTx(tx: Tx, actor: Actor | null, poId:
 
 /** Retry entry point (e.g. after a failure): safe to call any number of times. */
 export async function generateMilestoneInvoices(db: Db, actor: Actor, poId: string) {
-  if (!can(actor.role, "pos", "approve")) throw new ForbiddenError("pos", "approve");
+  if (!can(actor, "pos", "approve")) throw new ForbiddenError("pos", "approve");
   return inTx(db, async (tx) => {
     await lockPO(tx, poId);
     return generateMilestoneInvoicesTx(tx, actor, poId);

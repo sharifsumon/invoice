@@ -10,25 +10,32 @@ datasource db {
   provider = "postgresql"
 }
 
-// ───────────── Users & roles ─────────────
+// ───────────── Users & groups ─────────────
 
-enum Role {
-  ADMIN
-  MANAGEMENT
-  BUSINESS_DEVELOPMENT
-  PROJECT_MANAGER
-  FINANCE
-  VIEWER
+/// A user group and what its members may do. `permissions` is { module: action[] } (see server/core/permissions.ts).
+/// `key` marks the built-in groups created from the original roles (ADMIN, FINANCE, …).
+model UserGroup {
+  id          String   @id @default(cuid())
+  key         String?  @unique
+  name        String   @unique
+  description String?
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users                User[]
+  notificationSettings NotificationSetting[]
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String    @unique
   passwordHash String
-  role         Role     @default(VIEWER)
-  active       Boolean  @default(true)
-  /// Bumped on password change, deactivation, role change or "sign out everywhere" — invalidates all sessions.
+  groupId      String
+  group        UserGroup @relation(fields: [groupId], references: [id])
+  active       Boolean   @default(true)
+  /// Bumped on password change, deactivation, group change or "sign out everywhere" — invalidates all sessions.
   sessionVersion Int    @default(1)
   /// TOTP (RFC 6238) secret, base32. Enabled only once confirmed with a valid code.
   mfaSecret    String?
@@ -447,13 +454,14 @@ model Notification {
   @@index([userId, readAt, createdAt])
 }
 
-/// Which roles receive which events (BRD §5.9 "configurable by role and event").
+/// Which user groups receive which events (BRD §5.9 "configurable by role and event").
 model NotificationSetting {
   event   NotificationEvent
-  role    Role
+  groupId String
+  group   UserGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
   enabled Boolean           @default(true)
 
-  @@id([event, role])
+  @@id([event, groupId])
 }
 
 // ───────────── Settings ─────────────

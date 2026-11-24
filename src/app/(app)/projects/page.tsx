@@ -30,7 +30,7 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
   return (
     <>
       <PageHeader title="Projects" subtitle={`${projects.length} shown`}
-        actions={can(user.role, "projects", "create") && <LinkButton href="/projects/new">New project</LinkButton>} />
+        actions={can(user, "projects", "create") && <LinkButton href="/projects/new">New project</LinkButton>} />
       <Card>
         <form className="mb-4 flex flex-wrap gap-2">
           <Input name="q" defaultValue={q} placeholder="Search code, name or client…" className="max-w-xs" />
