@@ -61,7 +61,7 @@ export async function saveCompanyAction(_: ActionState, fd: FormData) {
     await updateCompany(prisma, actor, {
       legalName: str(fd, "legalName"), displayName: str(fd, "displayName"), address: str(fd, "address"), email: str(fd, "email"),
       phone: str(fd, "phone"), website: str(fd, "website"), registrationNumber: str(fd, "registrationNumber"), taxNumber: str(fd, "taxNumber"),
-      defaultCurrency: str(fd, "defaultCurrency"), bankDetails: str(fd, "bankDetails"), paymentTermsDays: str(fd, "paymentTermsDays"),
+      defaultCurrency: str(fd, "defaultCurrency"), bankDetails: str(fd, "bankDetails"), paymentTermsDays: str(fd, "paymentTermsDays"), projectCodePrefix: str(fd, "projectCodePrefix"),
       defaultNotes: str(fd, "defaultNotes"),
     });
     revalidatePath("/settings");

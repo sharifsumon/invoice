@@ -6,10 +6,25 @@ import { requireUser } from "@/server/auth";
 import { runAction, str, type ActionState } from "@/server/action";
 import { cancelAndReissue, cancelInvoice, finalizeInvoice, updateDraftInvoice } from "@/server/core/invoices";
 import { RuleError } from "@/server/core/permissions";
+import { approvePO } from "@/server/core/pos";
 import { recordPayment, reversePayment } from "@/server/core/payments";
 import { parseAddresses, sendInvoiceEmail } from "@/server/core/email";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
+
+/** "Approve" on a pending invoice: approves its PO, which releases all of the PO's milestone invoices. */
+export async function approvePendingInvoiceAction(invoiceId: string, _: ActionState, __: FormData): Promise<ActionState> {
+  const actor = await requireUser();
+  let flash = "";
+  const res = await runAction(async () => {
+    const inv = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { poId: true } });
+    const r = await approvePO(prisma, actor, inv.poId);
+    const n = r.milestones;
+    flash = n ? `PO approved — ${n} milestone invoice${n > 1 ? "s" : ""} ready to finalize` : "PO approved";
+  });
+  if (res?.ok) redirect(`/invoices/${invoiceId}?flash=${encodeURIComponent(flash)}`);
+  return res;
+}
 
 export async function recordPaymentAction(id: string, _: ActionState, fd: FormData) {
   const actor = await requireUser();

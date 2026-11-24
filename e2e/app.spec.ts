@@ -58,7 +58,7 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
 
   // Project starts as Draft → status dropdown → In Progress; then edit it
   await page.getByRole("link", { name: "New project" }).click();
-  await page.getByLabel("Project code *").fill("ORB-1");
+  await expect(page.getByLabel("Project code")).toHaveValue(/^PRJ-\d{4}$/); // auto-numbered
   await page.getByLabel("Project name *").fill("Data platform");
   await page.getByLabel("Project value *").fill("20000");
   await page.getByRole("button", { name: "Create project" }).click();
@@ -90,18 +90,21 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   // Saved straight into "Submitted for approval", with one pending invoice per milestone
   await expect(page.getByText("Submitted for approval").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Pending approval" })).toHaveCount(2);
+
+  // Approve from a pending invoice: approves the PO and releases both milestone invoices
+  await page.getByRole("link", { name: "Pending approval" }).first().click();
+  await expect(page.getByText("Pending approval.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finalize invoice" })).toHaveCount(0);
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText("PO approved — 2 milestone invoices ready to finalize")).toBeVisible();
-  await expect(page.getByText("This PO is fully invoiced")).toBeVisible(); // strict cap: 100% allocated, no manual invoice possible
 
-  // Finalize the first milestone invoice
-  await page.getByRole("link", { name: "Draft" }).first().click();
+  // Finalize this milestone invoice
   await page.getByRole("button", { name: "Finalize invoice" }).click();
   await expect(page.getByText(/Finalized as INV-\d{4}-\d{5}/)).toBeVisible();
   const number = (await page.getByRole("heading", { level: 1 }).innerText()).match(/INV-\d{4}-\d{5}/)![0];
 
   // Stored PDF is served
-  const pdf = await page.request.get(page.url().replace(/\/invoices\//, "/api/invoices/") + "/pdf");
+  const pdf = await page.request.get(new URL(page.url()).pathname.replace(/\/invoices\//, "/api/invoices/") + "/pdf");
   expect(pdf.headers()["content-type"]).toBe("application/pdf");
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
 

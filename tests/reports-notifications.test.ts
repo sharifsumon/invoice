@@ -182,7 +182,7 @@ describe("Global search", () => {
   it("finds clients, contacts, projects, POs and invoices", async () => {
     const name = uid("Zebra");
     const c = await createClient(db, admin, cl(name), [ct(name, "Contact", { email: "zz@zebra.example" })]);
-    const p = await createProject(db, admin, { code: `${name}-P`, name: "Stripes", clientId: c.id, value: "1", currency: "USD" });
+    const p = await createProject(db, admin, { name: `${name} Stripes`, clientId: c.id, value: "1" });
     const hits = await globalSearch(db, name);
     expect(hits.map((h) => h.type)).toEqual(expect.arrayContaining(["Client", "Contact", "Project"]));
     expect(hits.find((h) => h.type === "Project")?.href).toBe(`/projects/${p.id}`);

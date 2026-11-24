@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/server/auth";
 import { can } from "@/server/core/permissions";
 import { isOverdue } from "@/server/core/invoices";
-import { poBalance } from "@/server/core/pos";
+import { PO_TRANSITIONS, poBalance } from "@/server/core/pos";
 import { getSettings } from "@/server/core/settings";
 import { prisma } from "@/server/db";
 import { ActionButton, ActionForm, SubmitButton } from "@/components/forms";
 import { LineEditor } from "@/components/line-editor";
 import { Money } from "@/components/money";
 import { Badge, buttonClass, Card, DL, Flash, Field, fmtDate, Input, isoDate, isPoApproved, labelize, PageHeader, StatusBadge, Table, Td, Textarea } from "@/components/ui";
-import { cancelAction, finalizeAction, reissueAction, updateDraftAction } from "../actions";
+import { approvePendingInvoiceAction, cancelAction, finalizeAction, reissueAction, updateDraftAction } from "../actions";
 import { PrintButton } from "./print-button";
 import { EmailCard, PaymentsCard } from "./payments-email";
 
@@ -41,6 +41,8 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const poApproved = isPoApproved(inv.po.status);
   const pendingApproval = isDraft && !poApproved;
   const canFinalize = isDraft && poApproved && can(user.role, "invoices", "approve");
+  const canApprovePO = pendingApproval && PO_TRANSITIONS[inv.po.status].includes("APPROVED") && can(user.role, "pos", "approve");
+  const siblings = pendingApproval ? await prisma.invoice.count({ where: { poId: inv.poId, status: "DRAFT", kind: "MILESTONE" } }) : 0;
   const canCancel = !isCancelled && can(user.role, "invoices", "cancel") && inv.amountPaid.eq(0);
   const pdfUrl = `/api/invoices/${inv.id}/pdf`;
   const ownAllocation = isCancelled ? 0 : inv.subtotal.minus(inv.discount);
@@ -69,9 +71,15 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
       />
 
       {pendingApproval && (
-        <div className="mb-6 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
-          Pending approval: this milestone invoice was drafted when <Link href={`/pos/${inv.poId}`} className="font-semibold underline underline-offset-2">PO {inv.po.poNumber}</Link> was
-          submitted. It can be finalized once the PO is approved, and is cancelled automatically if the PO is rejected.
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
+          <p className="min-w-0 flex-1">
+            <b>Pending approval.</b> This milestone invoice was drafted when <Link href={`/pos/${inv.poId}`} className="font-semibold underline underline-offset-2">PO {inv.po.poNumber}</Link> was
+            submitted. It can be finalized once the PO is approved, and is cancelled automatically if the PO is rejected.
+          </p>
+          {canApprovePO && (
+            <ActionButton action={approvePendingInvoiceAction.bind(null, inv.id)} label="Approve" variant="primary" size="md"
+              confirm={`Approve PO ${inv.po.poNumber}? This approves ${siblings > 1 ? `all ${siblings} of its milestone invoices` : "this invoice"} and makes ${siblings > 1 ? "them" : "it"} ready to finalize.`} />
+          )}
         </div>
       )}
 

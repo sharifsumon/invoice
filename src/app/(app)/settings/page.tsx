@@ -43,6 +43,9 @@ export default async function SettingsPage() {
                 <Field label="Tax / VAT registration number"><Input name="taxNumber" defaultValue={c.taxNumber ?? ""} /></Field>
                 <Field label="Company currency" hint="Used for all new projects, POs, invoices, the dashboard and reports. Existing records keep their currency."><Input name="defaultCurrency" maxLength={3} className="uppercase" defaultValue={c.defaultCurrency} /></Field>
                 <Field label="Default payment terms (days)"><Input name="paymentTermsDays" type="number" min={0} max={365} defaultValue={c.paymentTermsDays} /></Field>
+                <Field label="Project code prefix" hint={`New projects are numbered automatically, e.g. ${c.projectCodePrefix || ""}0001.`}>
+                  <Input name="projectCodePrefix" maxLength={20} pattern="[A-Za-z0-9/_\-]*" defaultValue={c.projectCodePrefix} placeholder="PRJ-" className="font-mono" />
+                </Field>
                 <Field label="Address" className="sm:col-span-2"><Textarea name="address" defaultValue={c.address ?? ""} /></Field>
                 <Field label="Bank account / payment instructions" className="sm:col-span-2"><Textarea name="bankDetails" rows={4} defaultValue={c.bankDetails ?? ""} /></Field>
                 <Field label="Standard invoice notes" className="sm:col-span-2"><Textarea name="defaultNotes" defaultValue={c.defaultNotes ?? ""} /></Field>

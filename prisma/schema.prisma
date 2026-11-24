@@ -464,6 +464,7 @@ model CompanySettings {
   bankDetails        String?
   paymentTermsDays   Int     @default(30)
   defaultNotes       String?
+  projectCodePrefix  String  @default("PRJ-")
   logoPath           String?
   logoMime           String?
   updatedAt          DateTime @updatedAt

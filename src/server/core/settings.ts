@@ -16,6 +16,8 @@ export const companyInput = z.object({
   bankDetails: opt,
   paymentTermsDays: z.coerce.number().int().min(0).max(365),
   defaultNotes: opt,
+  /** Prefix for auto-numbered project codes, e.g. "PRJ-" → PRJ-0001. Omitted = unchanged. */
+  projectCodePrefix: z.string().trim().max(20).regex(/^[A-Za-z0-9/_-]*$/, "Project code prefix may contain letters, digits, - _ /").optional(),
 });
 
 export const templateInput = z.object({

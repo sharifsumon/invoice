@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ProjectStatus } from "@/generated/prisma/enums";
-import { audit, inTx, parseDate, today, type Actor, type Db } from "./common";
+import { audit, inTx, parseDate, today, type Actor, type Db, type Tx } from "./common";
 import { dec, money } from "./money";
 import { getSettings } from "./settings";
 import { can, ForbiddenError, RuleError } from "./permissions";
@@ -9,7 +9,8 @@ const optStr = z.string().trim().max(5000).optional().transform((v) => (v ? v : 
 const optDate = z.string().optional().transform((v) => parseDate(v || null));
 
 export const projectInput = z.object({
-  code: z.string().trim().min(1, "Project code is required").max(50),
+  /** Ignored: codes are generated automatically (Settings prefix + running number) and never change. */
+  code: z.string().optional(),
   name: z.string().trim().min(1, "Project name is required").max(200),
   clientId: z.string().min(1, "Client is required"),
   description: optStr,
@@ -54,6 +55,30 @@ export function transitionApproves(project: { approved: boolean }, to: ProjectSt
   return !project.approved && STARTS_WORK.includes(to);
 }
 
+const CODE_DIGITS = 4;
+const SEQ_KEY = "PROJECT_CODE";
+const formatCode = (prefix: string, n: number) => `${prefix}${String(n).padStart(CODE_DIGITS, "0")}`;
+
+/** Allocate the next project code (row-locked counter; skips any code already taken, e.g. older manual codes). */
+async function nextProjectCode(tx: Tx, prefix: string) {
+  await tx.$executeRaw`INSERT INTO "InvoiceSequence" ("key", "next") VALUES (${SEQ_KEY}, 1) ON CONFLICT ("key") DO NOTHING`;
+  for (;;) {
+    const [row] = await tx.$queryRaw<{ next: number }[]>`SELECT "next" FROM "InvoiceSequence" WHERE "key" = ${SEQ_KEY} FOR UPDATE`;
+    await tx.$executeRaw`UPDATE "InvoiceSequence" SET "next" = "next" + 1 WHERE "key" = ${SEQ_KEY}`;
+    const code = formatCode(prefix, row.next);
+    if (!(await tx.project.findUnique({ where: { code }, select: { id: true } }))) return code;
+  }
+}
+
+/** The code the next new project will most likely get (shown on the form; the real one is assigned on save). */
+export async function peekNextProjectCode(db: Db) {
+  const { company } = await getSettings(db);
+  const seq = await db.invoiceSequence.findUnique({ where: { key: SEQ_KEY } });
+  let n = seq?.next ?? 1;
+  while (await db.project.findUnique({ where: { code: formatCode(company.projectCodePrefix, n) }, select: { id: true } })) n++;
+  return formatCode(company.projectCodePrefix, n);
+}
+
 export async function createProject(db: Db, actor: Actor, raw: ProjectInput) {
   if (!can(actor.role, "projects", "create")) throw new ForbiddenError("projects", "create");
   const data = projectInput.parse(raw);
@@ -62,7 +87,8 @@ export async function createProject(db: Db, actor: Actor, raw: ProjectInput) {
   return inTx(db, async (tx) => {
     const client = await tx.client.findUnique({ where: { id: data.clientId } });
     if (!client || client.archived) throw new RuleError("Select an active client");
-    const p = await tx.project.create({ data: { ...data, value, currency: company.defaultCurrency, status: ProjectStatus.DRAFT } });
+    const code = await nextProjectCode(tx, company.projectCodePrefix);
+    const p = await tx.project.create({ data: { ...data, code, value, currency: company.defaultCurrency, status: ProjectStatus.DRAFT } });
     await audit(tx, actor, "project.created", "Project", p.id, { after: p });
     return p;
   });
@@ -87,7 +113,7 @@ export async function updateProject(db: Db, actor: Actor, id: string, raw: Proje
       throw new RuleError("A reason is required to change the value of an approved project");
     }
     // Currency never changes on edit: it was fixed from Settings when the project was created.
-    const p = await tx.project.update({ where: { id }, data: { ...data, value, currency: before.currency } });
+    const p = await tx.project.update({ where: { id }, data: { ...data, code: before.code, value, currency: before.currency } });
     if (before.approved && valueChanged) {
       await audit(tx, actor, "project.value_changed", "Project", id, {
         before: { value: before.value, currency: before.currency },

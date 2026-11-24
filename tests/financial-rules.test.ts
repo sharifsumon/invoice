@@ -78,6 +78,25 @@ describe("Business value (BR-01..03, BR-12)", () => {
     expect(log?.after).toMatchObject({ value: "1500" });
   });
 
+  it("project codes are auto-numbered with the Settings prefix, ignore typed codes and never change", async () => {
+    const { company } = await getSettings(db);
+    const keep = { legalName: company.legalName, displayName: company.displayName, defaultCurrency: company.defaultCurrency, paymentTermsDays: company.paymentTermsDays };
+    await updateCompany(db, admin, { ...keep, projectCodePrefix: "TST-" });
+    try {
+      const c = await createClient(db, bd, cl(uid("C")), [ct()]);
+      const a = await createProject(db, bd, { code: "TYPED-1", name: "a", clientId: c.id, value: "1" });
+      const b = await createProject(db, bd, { name: "b", clientId: c.id, value: "1" });
+      expect(a.code).toMatch(/^TST-\d{4,}$/);
+      expect(b.code).toMatch(/^TST-\d{4,}$/);
+      expect(Number(b.code.slice(4))).toBeGreaterThan(Number(a.code.slice(4)));
+      const u = await updateProject(db, bd, a.id, { code: "CHANGED", name: "a2", clientId: c.id, value: "1" });
+      expect(u.code).toBe(a.code);
+      await expect(updateCompany(db, admin, { ...keep, projectCodePrefix: "bad prefix!" })).rejects.toThrow(/prefix/);
+    } finally {
+      await updateCompany(db, admin, { ...keep, projectCodePrefix: company.projectCodePrefix });
+    }
+  });
+
   it("new projects always use the company currency from Settings, and edits never change it", async () => {
     const { company } = await getSettings(db);
     const c = await createClient(db, bd, cl(uid("C")), [ct()]);

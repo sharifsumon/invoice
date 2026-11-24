@@ -2,7 +2,7 @@ import type { Project } from "@/generated/prisma/client";
 import { ActionForm, SubmitButton, type ActionState } from "@/components/forms";
 import { Field, Input, isoDate, Select, Textarea } from "@/components/ui";
 
-export function ProjectForm({ action, project, clients, managers, defaultClientId, defaultCurrency, submitLabel = "Save", isNew }: {
+export function ProjectForm({ action, project, clients, managers, defaultClientId, defaultCurrency, submitLabel = "Save", isNew, nextCode }: {
   action: (s: ActionState, fd: FormData) => Promise<ActionState>;
   project?: Project;
   clients: { id: string; name: string }[];
@@ -11,11 +11,15 @@ export function ProjectForm({ action, project, clients, managers, defaultClientI
   defaultCurrency: string;
   submitLabel?: string;
   isNew?: boolean;
+  /** New project: the code it will most likely get (assigned automatically on save). */
+  nextCode?: string;
 }) {
   return (
     <ActionForm action={action}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Project code *"><Input name="code" required defaultValue={project?.code} placeholder="e.g. ACME-WEB-01" /></Field>
+        <Field label="Project code" hint={project ? "Assigned automatically; it never changes." : "Assigned automatically when you save. Set the prefix in Settings."}>
+          <Input value={project?.code ?? nextCode ?? "Auto"} disabled readOnly className="font-mono" />
+        </Field>
         <Field label="Project name *"><Input name="name" required defaultValue={project?.name} /></Field>
         <Field label="Client *">
           <Select name="clientId" required defaultValue={project?.clientId ?? defaultClientId ?? ""}>
