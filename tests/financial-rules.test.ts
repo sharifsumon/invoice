@@ -140,6 +140,19 @@ describe("PO approval & automatic milestone invoices (BR-04..06)", () => {
     expect(fin.status).toBe(InvoiceStatus.UNPAID);
   });
 
+  it("milestone draft: the line description can be reworded, the amount cannot change", async () => {
+    const p = await approvedProject();
+    const o = await po(p.id, "600", [["Phase 1", "100"]]);
+    const inv = await db.invoice.findFirstOrThrow({ where: { poId: o.id }, include: { lineItems: true } });
+    await updateDraftInvoice(db, finance, inv.id, { lines: [{ description: "Phase 1 — design sign-off", quantity: "5", unitPrice: "1" }] });
+    const after = await db.invoice.findUniqueOrThrow({ where: { id: inv.id }, include: { lineItems: true } });
+    expect(after.lineItems[0].description).toBe("Phase 1 — design sign-off");
+    expect(after.lineItems[0].amount.toString()).toBe("600");
+    expect(after.subtotal.toString()).toBe("600");
+    await expect(updateDraftInvoice(db, finance, inv.id, { lines: [{ description: "a", unitPrice: "1" }, { description: "b", unitPrice: "1" }] }))
+      .rejects.toThrow(/cannot be added or removed/);
+  });
+
   it("rejecting a submitted PO cancels its pending invoices; resubmitting drafts them again", async () => {
     const p = await approvedProject();
     const o = await po(p.id, "800", [["A", "50"], ["B", "50"]]);

@@ -101,7 +101,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           {canEdit ? (
             <Card title="Edit draft">
               <ActionForm action={updateDraftAction.bind(null, inv.id)}>
-                {inv.kind === "MILESTONE" && <p className="text-xs text-slate-500">Milestone invoice amounts are fixed to the PO milestone. You can change tax, dates, notes and terms.</p>}
+                {inv.kind === "MILESTONE" && <p className="text-xs text-slate-500">Milestone invoice amounts are fixed to the PO milestone. You can change the description, tax, dates, notes and terms.</p>}
                 <LineEditor
                   locked={inv.kind === "MILESTONE"}
                   initial={inv.lineItems.map((l) => ({ description: l.description, quantity: l.quantity.toString(), unitPrice: l.unitPrice.toFixed(2) }))}

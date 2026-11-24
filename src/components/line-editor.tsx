@@ -21,18 +21,19 @@ export function LineEditor({ initial, remaining, currency, discount: d0 = "", ta
 
   return (
     <div className="space-y-3">
-      {!locked && <input type="hidden" name="lines" value={JSON.stringify(rows)} />}
+      {/* Locked (milestone) invoices still send lines: only their descriptions are applied server-side. */}
+      <input type="hidden" name="lines" value={JSON.stringify(rows)} />
       <div className="rounded-lg border border-slate-200">
-        <div className="grid grid-cols-12 gap-2 border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
+        <div className="hidden grid-cols-12 gap-2 border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-500 xl:grid">
           <span className="col-span-6">Description</span><span className="col-span-2 text-right">Qty</span>
           <span className="col-span-2 text-right">Rate</span><span className="col-span-2 text-right">Amount</span>
         </div>
         {rows.map((r, i) => (
           <div key={i} className="grid grid-cols-12 items-center gap-2 px-3 py-2">
-            <input aria-label="Description" disabled={locked} value={r.description} onChange={(e) => set(i, "description", e.target.value)} className={`${inputClass} col-span-6`} placeholder="Description" />
-            <input aria-label="Quantity" disabled={locked} value={r.quantity} inputMode="decimal" onChange={(e) => set(i, "quantity", e.target.value)} className={`${inputClass} col-span-2 text-right`} />
-            <input aria-label="Rate" disabled={locked} value={r.unitPrice} inputMode="decimal" onChange={(e) => set(i, "unitPrice", e.target.value)} className={`${inputClass} col-span-2 text-right`} placeholder="0.00" />
-            <span className="col-span-2 flex items-center justify-end gap-2 text-sm tabular">
+            <input aria-label="Description" value={r.description} onChange={(e) => set(i, "description", e.target.value)} className={`${inputClass} col-span-12 xl:col-span-6`} placeholder="Description" />
+            <input aria-label="Quantity" disabled={locked} value={r.quantity} inputMode="decimal" onChange={(e) => set(i, "quantity", e.target.value)} className={`${inputClass} col-span-4 text-right xl:col-span-2`} />
+            <input aria-label="Rate" disabled={locked} value={r.unitPrice} inputMode="decimal" onChange={(e) => set(i, "unitPrice", e.target.value)} className={`${inputClass} col-span-4 text-right xl:col-span-2`} placeholder="0.00" />
+            <span className="col-span-4 flex items-center justify-end gap-2 text-sm tabular xl:col-span-2">
               {r2((Number(r.quantity) || 0) * (Number(r.unitPrice) || 0)).toFixed(2)}
               {!locked && rows.length > 1 && <button type="button" aria-label="Remove line" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} className="text-rose-500">×</button>}
             </span>

@@ -114,7 +114,7 @@ export const draftUpdateInput = z.object({
   terms: z.string().max(5000).optional(),
 });
 
-/** Drafts are editable. Milestone invoice amounts are fixed to the milestone; only tax/dates/notes change. */
+/** Drafts are editable. Milestone invoice amounts are fixed to the milestone; only descriptions/tax/dates/notes change. */
 export async function updateDraftInvoice(db: Db, actor: Actor, id: string, raw: z.input<typeof draftUpdateInput>) {
   if (!can(actor.role, "invoices", "edit")) throw new ForbiddenError("invoices", "edit");
   const data = draftUpdateInput.parse(raw);
@@ -145,6 +145,17 @@ export async function updateDraftInvoice(db: Db, actor: Actor, id: string, raw: 
     if (lines) {
       await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
       await tx.invoiceLineItem.createMany({ data: lines.map((l) => ({ ...l, invoiceId: id })) });
+    }
+    // Milestone invoices: amounts stay fixed to the milestone, but line descriptions can be reworded.
+    if (data.lines && before.kind === InvoiceKind.MILESTONE) {
+      const existing = [...before.lineItems].sort((a, b) => a.sequence - b.sequence);
+      if (data.lines.length !== existing.length) throw new RuleError("Milestone invoice lines cannot be added or removed");
+      for (let i = 0; i < existing.length; i++) {
+        const description = data.lines[i].description;
+        if (description !== existing[i].description) {
+          await tx.invoiceLineItem.update({ where: { id: existing[i].id }, data: { description } });
+        }
+      }
     }
     const inv = await tx.invoice.update({
       where: { id },
