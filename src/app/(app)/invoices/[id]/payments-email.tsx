@@ -51,7 +51,7 @@ export function PaymentsCard({ inv, payments, canRecord, canReverse, canBalance 
                 </Select>
               </Field>
               <Field label="Transaction / reference no."><Input name="reference" /></Field>
-              <Field label="Receipt (PDF, PNG, JPEG ≤ 5 MB)"><input type="file" name="receipt" accept="application/pdf,image/png,image/jpeg" className="block w-full pt-2 text-sm" /></Field>
+              <Field label="Receipt (PDF, PNG, JPEG ≤ 5 MB)"><input type="file" name="receipt" accept="application/pdf,image/png,image/jpeg" /></Field>
               <Field label="Notes" className="sm:col-span-3"><Textarea name="notes" rows={2} /></Field>
             </div>
             <SubmitButton>Record payment</SubmitButton>
