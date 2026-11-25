@@ -42,7 +42,7 @@ export async function login(_: ActionState, fd: FormData): Promise<ActionState> 
     redirect("/login/mfa");
   }
   await finishLogin(user.id, user.sessionVersion);
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function verifyMfa(_: ActionState, fd: FormData): Promise<ActionState> {
@@ -58,7 +58,7 @@ export async function verifyMfa(_: ActionState, fd: FormData): Promise<ActionSta
   }
   failures.delete(`mfa:${ch.userId}`);
   await finishLogin(user.id, user.sessionVersion);
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function logout() {

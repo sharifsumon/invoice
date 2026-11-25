@@ -9,7 +9,7 @@ import { RuleError } from "@/server/core/permissions";
 import { prisma } from "@/server/db";
 
 export async function changePasswordAction(_: ActionState, fd: FormData) {
-  const actor = await requireUser();
+  const actor = await requireUser({ allowExpired: true });
   return runAction(async () => {
     if (str(fd, "next") !== str(fd, "confirm")) throw new RuleError("The new passwords do not match.");
     const sv = await changeOwnPassword(prisma, actor, str(fd, "current"), str(fd, "next"));
@@ -19,7 +19,7 @@ export async function changePasswordAction(_: ActionState, fd: FormData) {
 }
 
 export async function beginMfaAction(_: ActionState, _fd: FormData) {
-  const actor = await requireUser();
+  const actor = await requireUser({ allowExpired: true });
   return runAction(async () => {
     await beginMfaSetup(prisma, actor);
     revalidatePath("/account");
@@ -28,7 +28,7 @@ export async function beginMfaAction(_: ActionState, _fd: FormData) {
 }
 
 export async function confirmMfaAction(_: ActionState, fd: FormData) {
-  const actor = await requireUser();
+  const actor = await requireUser({ allowExpired: true });
   return runAction(async () => {
     const sv = await confirmMfaSetup(prisma, actor, str(fd, "code"));
     await createSession(actor.id, sv);
@@ -38,7 +38,7 @@ export async function confirmMfaAction(_: ActionState, fd: FormData) {
 }
 
 export async function disableMfaAction(_: ActionState, fd: FormData) {
-  const actor = await requireUser();
+  const actor = await requireUser({ allowExpired: true });
   return runAction(async () => {
     await disableOwnMfa(prisma, actor, str(fd, "password"), str(fd, "code"));
     revalidatePath("/account");
@@ -47,7 +47,7 @@ export async function disableMfaAction(_: ActionState, fd: FormData) {
 }
 
 export async function signOutEverywhereAction() {
-  const actor = await requireUser();
+  const actor = await requireUser({ allowExpired: true });
   await signOutEverywhere(prisma, actor);
   await destroySession();
   redirect("/login");

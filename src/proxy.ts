@@ -4,8 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(req: NextRequest) {
   const hasSession = req.cookies.has("crm_session");
   const p = req.nextUrl.pathname;
-  // /api/cron authenticates with its own bearer secret.
-  if (!hasSession && !p.startsWith("/login") && !p.startsWith("/api/cron/") && p !== "/api/health") {
+  // Public marketing pages; /api/cron authenticates with its own bearer secret.
+  const isPublic = p === "/" || p === "/pricing";
+  if (!hasSession && !isPublic && !p.startsWith("/login") && !p.startsWith("/api/cron/") && p !== "/api/health") {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

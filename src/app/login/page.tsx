@@ -6,7 +6,7 @@ import { LoginForm } from "./login-form";
 export const metadata = { title: "Sign in" };
 
 export default async function LoginPage() {
-  if (await getUser()) redirect("/");
+  if (await getUser()) redirect("/dashboard");
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to your account to continue."
       footer="Forgot your password? Ask an administrator to reset it from the Users page.">

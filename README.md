@@ -122,6 +122,14 @@ monthly commercial performance · client performance · project performance.
 
 **Currencies (BR-12).** By default, totals are shown per currency. To combine currencies, pick a **reporting currency**. Each amount is then converted with the latest recorded rate effective on or before that row's own date; the inverse pair is used if only that direction exists. Amounts with no rate are never guessed: they're flagged "no rate", counted, and left out of the converted total. Rates are managed under Settings → Exchange rates and are for reporting only.
 
+### Homepage, pricing & subscription
+
+- `/` is the public homepage (all features, AI assistant first) and `/pricing` the public pricing page; both work without signing in. The app's dashboard is at `/dashboard`, where sign-in lands.
+- Plans (`src/lib/plans.ts`): a **14-day free trial** (every feature, up to 10 users) starting when the company is set up, then **Starter** — up to 5 users, $10 USD/month — or **Team** — up to 10 users, $20 USD/month. Every feature is in both.
+- **Admin → Subscription** (needs *Settings → Manage settings*): trial countdown, users used vs. the limit, and plan choice. Adding or re-activating a user beyond the limit is refused; switching to a plan smaller than the active user count is refused.
+- When the trial ends without a plan, every page and action redirects to Subscription until a plan is chosen (data is untouched).
+- Card payments are not connected: choosing a plan activates it immediately and is audited. A payment provider can be added in `choosePlan()` (`src/server/core/subscription.ts`).
+
 ### AI assistant
 
 **AI assistant** (sidebar) answers questions in plain language using Google Gemini: PO and invoice details, overdue lists, comparisons by client/project/month, collections, and any built-in report. Ask for Excel, Word or PDF to get a downloadable file.

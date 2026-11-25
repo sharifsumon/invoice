@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Building2, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, ShieldCheck, Sparkles, Users, type LucideIcon,
+  BarChart3, Building2, CreditCard, FileText, FolderKanban, LayoutDashboard, ReceiptText, ScrollText, Settings, ShieldCheck, Sparkles, Users, type LucideIcon,
 } from "lucide-react";
 import { cx } from "@/components/ui";
 
 export const NAV_ICONS = {
-  dashboard: LayoutDashboard, assistant: Sparkles, clients: Building2, projects: FolderKanban, pos: FileText, invoices: ReceiptText,
+  dashboard: LayoutDashboard, assistant: Sparkles, subscription: CreditCard, clients: Building2, projects: FolderKanban, pos: FileText, invoices: ReceiptText,
   reports: BarChart3, settings: Settings, users: Users, groups: ShieldCheck, audit: ScrollText,
 } satisfies Record<string, LucideIcon>;
 export type NavIcon = keyof typeof NAV_ICONS;
@@ -81,13 +81,13 @@ export function CurrentSection({ links }: { links: NavItem[] }) {
   const match = links.find((l) => l.href === activeHref(path, links));
   const label = match?.label ?? Object.entries(EXTRA).find(([k]) => path.startsWith(k))?.[1] ?? "";
   const sectionHref = match?.href ?? path;
-  const deeper = path !== sectionHref && path !== "/";
+  const deeper = path !== sectionHref && path !== "/dashboard";
   return (
     <div className="min-w-0">
       <div className="truncate text-[20px] font-semibold leading-tight tracking-tight text-slate-900">{label || "Dashboard"}</div>
       <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-slate-500">
-        {path === "/" ? <span>Overview</span> : <>
-          <Link href="/" className="font-medium text-brand-600 hover:underline">Dashboard</Link>
+        {path === "/dashboard" ? <span>Overview</span> : <>
+          <Link href="/dashboard" className="font-medium text-brand-600 hover:underline">Dashboard</Link>
           <span aria-hidden>/</span>
           {deeper ? <Link href={sectionHref} className="font-medium text-brand-600 hover:underline">{label}</Link> : <span>{label}</span>}
           {deeper && <><span aria-hidden>/</span><span>{path.endsWith("/new") ? "New" : "Details"}</span></>}

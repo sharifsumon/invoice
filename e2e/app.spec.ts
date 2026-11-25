@@ -11,6 +11,21 @@ async function login(page: Page, who: { email: string; password: string }) {
 
 test.describe.configure({ mode: "serial" });
 
+test("public homepage and pricing (no sign-in needed)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /From first call/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Ask in plain language/ })).toBeVisible(); // AI assistant section
+  await expect(page.getByRole("heading", { name: "User groups & permissions" })).toBeVisible();
+  await expect(page.getByLabel("Starter plan")).toContainText("$10");
+  await expect(page.getByLabel("Team plan")).toContainText("$20");
+  await page.getByRole("link", { name: "Pricing", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/pricing$/);
+  await expect(page.getByRole("heading", { name: /Try everything free for 14 days/ })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Up to 5", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Start free trial" }).first().click();
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test("platform: health, security headers, auth gate", async ({ request, page }) => {
   const health = await request.get("/api/health");
   expect(health.status()).toBe(200);
@@ -212,6 +227,19 @@ test("AI assistant: not set up → points to Settings, where the key is entered"
   await expect(page.getByLabel("Google API key")).toBeVisible();
   await expect(page.getByRole("button", { name: "Test key" })).toBeVisible();
   // (Saving is checked against Google, so it's covered by unit tests with a fake Google instead of here.)
+});
+
+test("subscription: trial banner, choose a plan", async ({ page }) => {
+  await login(page, E2E_ADMIN);
+  await expect(page.getByText(/Free trial: 14 days left/)).toBeVisible();
+  await page.getByRole("link", { name: "Choose a plan" }).click();
+  await expect(page.getByRole("heading", { name: "Subscription", level: 1 })).toBeVisible();
+  await expect(page.getByText(/of 10 active users/)).toBeVisible();
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-subscription.png`, fullPage: true });
+  await page.getByLabel("Starter plan").getByRole("button", { name: "Choose Starter" }).click();
+  await expect(page.getByText("Plan changed to Starter")).toBeVisible();
+  await expect(page.getByText(/of 5 active users/)).toBeVisible();
+  await expect(page.getByText(/Free trial: 14 days left/)).toHaveCount(0);
 });
 
 test("two-factor sign-in", async ({ page, context }) => {

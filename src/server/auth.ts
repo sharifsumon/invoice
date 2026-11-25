@@ -6,6 +6,7 @@ import { cache } from "react";
 import { prisma } from "./db";
 import type { Actor } from "./core/common";
 import { can, normalizePerms, type Action, type Module } from "./core/permissions";
+import { getSubscription } from "./core/subscription";
 
 export const SESSION_COOKIE = "crm_session";
 export const MFA_COOKIE = "crm_mfa";
@@ -80,15 +81,23 @@ export const getUser = cache(async () => {
 
 export type SessionUser = Actor & { email: string; mfaEnabled: boolean };
 
-export async function requireUser(): Promise<SessionUser> {
+/** Subscription state, memoized per request. */
+export const currentSubscription = cache(() => getSubscription(prisma));
+
+/**
+ * Signed-in user, or redirect to sign-in. When the free trial has ended without a plan, everything except the
+ * Subscription page (and account / sign-out) redirects there — pages and server actions alike.
+ */
+export async function requireUser(opts: { allowExpired?: boolean } = {}): Promise<SessionUser> {
   const u = await getUser();
   if (!u) redirect("/login");
+  if (!opts.allowExpired && (await currentSubscription()).status === "expired") redirect("/subscription");
   return { id: u.id, name: u.name, groupId: u.groupId, groupName: u.groupName, perms: u.perms, email: u.email, mfaEnabled: u.mfaEnabled };
 }
 
 /** Page-level guard: send users without the permission back to the dashboard. */
 export async function requirePermission(module: Module, action: Action = "view") {
   const u = await requireUser();
-  if (!can(u, module, action)) redirect("/?denied=1");
+  if (!can(u, module, action)) redirect("/dashboard?denied=1");
   return u;
 }

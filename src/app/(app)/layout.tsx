@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { after } from "next/server";
-import { Bell, ChevronDown, FilePlus2, LogOut, Search, Settings, ShieldAlert, UserRound } from "lucide-react";
-import { requireUser } from "@/server/auth";
+import { Bell, ChevronDown, Clock, FilePlus2, LogOut, Search, Settings, ShieldAlert, UserRound } from "lucide-react";
+import { currentSubscription, requireUser } from "@/server/auth";
 import { maybeScan } from "@/server/core/notifications";
 import { can, type Action, type Module } from "@/server/core/permissions";
 import { getSettings } from "@/server/core/settings";
@@ -10,7 +10,7 @@ import { logout } from "../login/actions";
 import { CurrentSection, MobileNav, NavLinks, type NavItem } from "./nav-links";
 
 const NAV: (NavItem & { module?: Module; action?: Action })[] = [
-  { href: "/", label: "Dashboard", icon: "dashboard", section: "Overview" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard", section: "Overview" },
   { href: "/assistant", label: "AI assistant", icon: "assistant", module: "assistant", section: "Overview" },
   { href: "/clients", label: "Clients", icon: "clients", module: "clients", section: "Sales" },
   { href: "/projects", label: "Projects", icon: "projects", module: "projects", section: "Sales" },
@@ -18,6 +18,7 @@ const NAV: (NavItem & { module?: Module; action?: Action })[] = [
   { href: "/invoices", label: "Invoices", icon: "invoices", module: "invoices", section: "Finance" },
   { href: "/reports", label: "Reports", icon: "reports", module: "reports", section: "Finance" },
   { href: "/settings", label: "Settings", icon: "settings", module: "settings", action: "administer", section: "Admin" },
+  { href: "/subscription", label: "Subscription", icon: "subscription", module: "settings", action: "administer", section: "Admin" },
   { href: "/users", label: "Users", icon: "users", module: "users", section: "Admin" },
   { href: "/users/groups", label: "User groups", icon: "groups", module: "users", action: "groups", section: "Admin" },
   { href: "/audit", label: "Audit Log", icon: "audit", module: "audit", section: "Admin" },
@@ -62,13 +63,14 @@ function initials(name: string) {
 }
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const user = await requireUser();
+  const user = await requireUser({ allowExpired: true });
   const links: NavItem[] = NAV
     .filter((n) => !n.module || can(user, n.module, n.action ?? "view"))
     .map(({ href, label, icon, section }) => ({ href, label, icon, section }));
-  const [unread, { company }] = await Promise.all([
+  const [unread, { company }, sub] = await Promise.all([
     prisma.notification.count({ where: { userId: user.id, readAt: null } }),
     getSettings(prisma),
+    currentSubscription(),
   ]);
   after(() => maybeScan(prisma)); // due/overdue notifications, throttled; also available via /api/cron/notifications
   // Remind anyone holding sensitive rights (finalize invoices, payments, settings, users) to turn on 2FA
@@ -81,7 +83,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <div className="flex min-h-screen bg-white md:min-h-[calc(100vh-2rem)] md:rounded-[28px] md:shadow-[0_1px_3px_rgba(16,40,32,0.06)]">
         {/* Sidebar */}
         <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 flex-col md:flex print:hidden">
-          <div className="flex h-20 items-center px-7"><Link href="/" aria-label="Dashboard"><Logo /></Link></div>
+          <div className="flex h-20 items-center px-7"><Link href="/dashboard" aria-label="Dashboard"><Logo /></Link></div>
           <div className="sidebar-scroll flex-1 overflow-y-auto py-2"><NavLinks links={links} /></div>
           {can(user, "pos", "create") && (
             <div className="m-4 rounded-2xl bg-lime-soft p-5">
@@ -98,7 +100,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <div className="flex min-w-0 flex-1 flex-col bg-surface md:my-2 md:mr-2 md:rounded-[22px]">
           <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur md:rounded-t-[22px] print:hidden">
             <div className="flex h-20 items-center gap-3 px-4 md:px-8">
-              <span className="md:hidden"><Link href="/" aria-label="Dashboard"><Logo /></Link></span>
+              <span className="md:hidden"><Link href="/dashboard" aria-label="Dashboard"><Logo /></Link></span>
               <span className="hidden min-w-0 flex-1 md:block"><CurrentSection links={links} /></span>
               <div className="flex flex-1 justify-end md:flex-none"><SearchBox /></div>
               {canAdmin && <Link href="/settings" aria-label="Settings" className={`${iconBtn} hidden sm:inline-flex`}><Settings className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden /></Link>}
@@ -130,6 +132,16 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
             <div className="md:hidden"><MobileNav links={links} /></div>
           </header>
+
+          {sub.status === "trial" && canAdmin && (
+            <div className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-brand-900 px-4 py-2.5 text-sm text-white md:mx-8 print:hidden">
+              <span className="inline-flex items-center gap-2">
+                <Clock className="h-4 w-4 text-brand-300" aria-hidden />
+                Free trial: <b>{sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left</b> (ends {sub.trialEndsAt.toISOString().slice(0, 10)}).
+              </span>
+              <Link href="/subscription" className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-brand-900 hover:bg-brand-50">Choose a plan</Link>
+            </div>
+          )}
 
           {mfaNag && (
             <div className="mx-4 mb-2 rounded-xl bg-lime-soft px-4 py-2.5 text-sm text-brand-950 md:mx-8 print:hidden">

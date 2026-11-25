@@ -10,7 +10,7 @@ import { beginMfaAction, changePasswordAction, confirmMfaAction, disableMfaActio
 export const metadata = { title: "My account" };
 
 export default async function AccountPage() {
-  const me = await requireUser();
+  const me = await requireUser({ allowExpired: true });
   const u = await prisma.user.findUniqueOrThrow({ where: { id: me.id } });
   const pending = !u.mfaEnabled && u.mfaSecret;
   const qr = pending ? await QRCode.toDataURL(otpauthUrl(u.mfaSecret!, u.email), { margin: 1, width: 200 }) : null;

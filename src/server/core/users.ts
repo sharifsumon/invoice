@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { audit, inTx, type Actor, type Db, type Tx } from "./common";
 import { can, ForbiddenError, normalizePerms, RuleError, type Perms } from "./permissions";
+import { assertUserSeat } from "./subscription";
 
 export const PASSWORD_RULE = "At least 10 characters, with a letter and a number";
 export function checkPassword(pw: string) {
@@ -33,6 +34,7 @@ export async function createUser(db: Db, actor: Actor, raw: z.input<typeof userI
     const group = await tx.userGroup.findUnique({ where: { id: data.groupId }, select: { name: true } });
     if (!group) throw new RuleError("Choose a valid group");
     if (await tx.user.findUnique({ where: { email: data.email }, select: { id: true } })) throw new RuleError("A user with this email already exists");
+    await assertUserSeat(tx); // plan / trial user limit
     const u = await tx.user.create({
       data: { name: data.name, email: data.email, groupId: data.groupId, passwordHash: await bcrypt.hash(data.password!, 12) },
     });
@@ -51,6 +53,7 @@ export async function updateUser(db: Db, actor: Actor, id: string, raw: z.input<
     const before = await tx.user.findUniqueOrThrow({ where: { id }, select: { name: true, email: true, groupId: true, active: true } });
     if (before.active !== raw.active && !can(actor, "users", "delete")) throw new ForbiddenError("users", "delete");
     if (!(await tx.userGroup.findUnique({ where: { id: data.groupId }, select: { id: true } }))) throw new RuleError("Choose a valid group");
+    if (!before.active && raw.active) await assertUserSeat(tx); // re-activating takes a seat
     const revoke = !!data.password || before.active !== raw.active || before.groupId !== data.groupId;
     const u = await tx.user.update({
       where: { id },
