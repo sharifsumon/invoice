@@ -8,11 +8,38 @@ import { PLANS, TRIAL_DAYS, TRIAL_USER_LIMIT } from "@/lib/plans";
 import { PlanCards } from "@/components/plan-cards";
 import { MarketingFooter, MarketingHeader, SectionTitle } from "@/components/marketing";
 import { buttonClass, cx } from "@/components/ui";
+import { SEO_DESCRIPTION, SEO_KEYWORDS, SEO_TITLE, SITE_URL } from "@/lib/seo";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: { absolute: "InvoiceHub — clients, POs, invoices & payments, with an AI assistant" },
-  description: "Clients, projects, purchase orders, automatic invoices and payments in one place — and an AI assistant that does anything you ask. Free for 14 days.",
+export const metadata: Metadata = {
+  title: { absolute: SEO_TITLE },
+  description: SEO_DESCRIPTION,
+  keywords: SEO_KEYWORDS,
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
+  openGraph: { type: "website", url: "/", siteName: "InvoiceHub", title: SEO_TITLE, description: SEO_DESCRIPTION, locale: "en_US" },
+  twitter: { card: "summary_large_image", title: SEO_TITLE, description: SEO_DESCRIPTION },
 };
+
+/** Structured data so search engines understand this is invoicing / billing software, its prices and FAQ. */
+function jsonLd() {
+  return [
+    {
+      "@context": "https://schema.org", "@type": "SoftwareApplication",
+      name: "InvoiceHub", url: SITE_URL, applicationCategory: "BusinessApplication", applicationSubCategory: "Invoice & billing software",
+      operatingSystem: "Web browser", description: SEO_DESCRIPTION,
+      featureList: ["AI assistant", ...FEATURES.map((f) => f.title)].join(", "),
+      offers: [
+        { "@type": "Offer", name: "Free trial", price: "0", priceCurrency: "USD", description: `Free for ${TRIAL_DAYS} days, up to ${TRIAL_USER_LIMIT} users` },
+        ...PLANS.map((p) => ({ "@type": "Offer", name: p.name, price: String(p.priceUsd), priceCurrency: "USD", description: `Up to ${p.userLimit} users, billed monthly` })),
+      ],
+    },
+    {
+      "@context": "https://schema.org", "@type": "FAQPage",
+      mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ];
+}
 
 /** The nine features shown as cards (the AI assistant gets its own large card above them). */
 const FEATURES = [
@@ -70,12 +97,14 @@ export default async function HomePage() {
             <Sparkles className="h-3.5 w-3.5" aria-hidden />New · Ask the AI assistant anything<ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
           <h1 className="mx-auto mt-7 max-w-4xl text-[44px] font-bold leading-[1.04] tracking-tight md:text-[72px]">
+            {/* the search phrase people use, inside the h1 — the slogan stays the visual headline */}
+            <span className="mb-4 block text-sm font-semibold uppercase tracking-[0.2em] text-brand-300 md:text-base">Invoice &amp; billing software</span>
             From first call to final payment —{" "}
             <span className="bg-gradient-to-r from-lime-mid via-brand-300 to-brand-400 bg-clip-text text-transparent">just ask.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-brand-100/80 md:text-xl">
-            Clients, projects, purchase orders, automatic invoices and payments in one simple app — with an AI assistant that finds,
-            compares and exports anything you need in seconds.
+            Invoicing, billing and CRM in one simple app — clients, projects, purchase orders, automatic invoices and payments — with an
+            AI assistant that finds, compares and exports anything you need in seconds.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <Link href={cta.href} className="inline-flex h-13 items-center gap-2 rounded-2xl bg-lime-mid px-7 py-3.5 text-[16px] font-semibold text-brand-950 shadow-lg shadow-lime-mid/20 transition hover:-translate-y-0.5 hover:bg-lime-soft">
@@ -248,6 +277,7 @@ export default async function HomePage() {
       </section>
 
       <MarketingFooter />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, "\\u003c") }} />
     </div>
   );
 }

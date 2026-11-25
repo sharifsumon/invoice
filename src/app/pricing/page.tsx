@@ -5,8 +5,15 @@ import { PLANS, TRIAL_DAYS, TRIAL_USER_LIMIT } from "@/lib/plans";
 import { PlanCards } from "@/components/plan-cards";
 import { MarketingFooter, MarketingHeader, SectionTitle } from "@/components/marketing";
 import { buttonClass, cx } from "@/components/ui";
+import type { Metadata } from "next";
 
-export const metadata = { title: "Pricing", description: `Free for ${TRIAL_DAYS} days (up to ${TRIAL_USER_LIMIT} users), Starter $10/month for up to 5 users, Team $20/month for up to 10 users.` };
+export const metadata: Metadata = {
+  title: "Pricing — Invoice & Billing Software",
+  description: `InvoiceHub pricing: free for ${TRIAL_DAYS} days (up to ${TRIAL_USER_LIMIT} users), Starter $10/month for up to 5 users, Team $20/month for up to 10 users. Every invoicing and billing feature included.`,
+  alternates: { canonical: "/pricing" },
+  robots: { index: true, follow: true },
+  openGraph: { type: "website", url: "/pricing", siteName: "InvoiceHub", title: "InvoiceHub pricing — invoice & billing software from $10/month" },
+};
 
 export default async function PricingPage() {
   const signedIn = !!(await getUser());
