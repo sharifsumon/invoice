@@ -21,8 +21,8 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
           <Link href="/" className="relative mb-10 self-start" aria-label={`${APP_NAME} home`}><BrandLogo light size="lg" /></Link>
 
           <div className="relative my-auto max-w-md">
-            <h2 className="text-4xl font-semibold leading-tight tracking-tight">From first call<br />to final payment.</h2>
-            <p className="mt-4 text-base text-brand-100/80">Clients, projects, purchase orders, invoices and collections — in one place.</p>
+            <h2 className="text-4xl font-semibold leading-tight tracking-tight">Every client, invoice, and payment —<br />track all in one place.</h2>
+            <p className="mt-4 text-base text-brand-100/80">Clients, projects, purchase orders, invoices and collections in one simple app.</p>
             <ul className="mt-10 space-y-4">
               {FEATURES.map(({ icon: Icon, title: t, text }) => (
                 <li key={t} className="flex gap-4 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">

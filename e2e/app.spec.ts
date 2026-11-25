@@ -13,7 +13,7 @@ test.describe.configure({ mode: "serial" });
 
 test("public homepage and pricing (no sign-in needed)", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /From first call/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Every client, invoice, and payment/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ask the AI assistant anything" })).toBeVisible(); // AI assistant card
   for (const f of ["Clients & contacts", "Projects", "Purchase orders & milestones", "Automatic invoice creation", "Payments & part payments",
     "Excel & PDF invoices", "Invoice email", "Notifications", "Global search"]) {

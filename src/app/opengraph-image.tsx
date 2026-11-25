@@ -19,7 +19,10 @@ export default function OpengraphImage() {
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 26, letterSpacing: 6, color: "#74d5b6", fontWeight: 700 }}>INVOICE & BILLING SOFTWARE</div>
-          <div style={{ marginTop: 18, fontSize: 68, fontWeight: 800, lineHeight: 1.08 }}>From first call to final payment — just ask.</div>
+          <div style={{ marginTop: 18, display: "flex", flexDirection: "column", fontSize: 50, fontWeight: 800, lineHeight: 1.1 }}>
+            <div style={{ display: "flex" }}>Every client, invoice, and payment —</div>
+            <div style={{ display: "flex", color: "#d3e8b4" }}>track all in one place.</div>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
           {chips.map((c) => (

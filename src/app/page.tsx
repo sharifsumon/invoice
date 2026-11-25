@@ -99,8 +99,8 @@ export default async function HomePage() {
           <h1 className="mx-auto mt-7 max-w-4xl text-[44px] font-bold leading-[1.04] tracking-tight md:text-[72px]">
             {/* the search phrase people use, inside the h1 — the slogan stays the visual headline */}
             <span className="mb-4 block text-sm font-semibold uppercase tracking-[0.2em] text-brand-300 md:text-base">Invoice &amp; billing software</span>
-            From first call to final payment —{" "}
-            <span className="bg-gradient-to-r from-lime-mid via-brand-300 to-brand-400 bg-clip-text text-transparent">just ask.</span>
+            Every client, invoice, and payment —{" "}
+            <span className="block bg-gradient-to-r from-lime-mid via-brand-300 to-brand-400 bg-clip-text text-transparent">track all in one place.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-brand-100/80 md:text-xl">
             Invoicing, billing and CRM in one simple app — clients, projects, purchase orders, automatic invoices and payments — with an
