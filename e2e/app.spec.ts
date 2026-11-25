@@ -20,7 +20,14 @@ test("public homepage and pricing (no sign-in needed)", async ({ page }) => {
   await expect(page.getByLabel("Team plan")).toContainText("$20");
   await page.getByRole("link", { name: "Pricing", exact: true }).first().click();
   await expect(page).toHaveURL(/\/pricing$/);
-  await expect(page.getByRole("heading", { name: /Try everything free for 14 days/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Simple pricing for every team" })).toBeVisible();
+  // The free trial is its own package; paid plans carry no trial; Starter is the most popular
+  await expect(page.getByLabel("Free trial package")).toContainText("Free");
+  await expect(page.getByLabel("Free trial package")).toContainText("for 14 days");
+  await expect(page.getByLabel("Starter plan")).not.toContainText("free trial");
+  await expect(page.getByLabel("Team plan")).not.toContainText("free trial");
+  await expect(page.getByLabel("Starter plan")).toContainText("Most popular");
+  await expect(page.getByLabel("Team plan")).not.toContainText("Most popular");
   await expect(page.getByRole("cell", { name: "Up to 5", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Start free trial" }).first().click();
   await expect(page).toHaveURL(/\/login$/);

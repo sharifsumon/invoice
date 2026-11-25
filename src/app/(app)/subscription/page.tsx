@@ -66,7 +66,13 @@ export default async function SubscriptionPage({ searchParams }: PageProps<"/sub
         </Card>
       </div>
 
-      <PlanCards current={sub.plan?.id} action={(p) => {
+      <PlanCards current={sub.plan?.id} onTrial={sub.status === "trial"}
+        trialAction={
+          <div className={`rounded-xl px-4 py-2.5 text-center text-sm font-semibold ${sub.status === "trial" ? "bg-white text-brand-800 ring-1 ring-lime-mid" : "bg-slate-100 text-slate-500"}`}>
+            {sub.status === "trial" ? `${sub.trialDaysLeft} day${sub.trialDaysLeft === 1 ? "" : "s"} left` : sub.status === "expired" ? "Trial ended" : "Trial used"}
+          </div>
+        }
+        action={(p) => {
         if (!canManage) return <p className="text-sm text-slate-500">An administrator can change the plan.</p>;
         if (sub.plan?.id === p.id) return <div className="rounded-xl bg-brand-50 px-4 py-2.5 text-center text-sm font-semibold text-brand-800">Current plan</div>;
         const tooSmall = sub.activeUsers > p.userLimit;

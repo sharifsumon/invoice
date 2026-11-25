@@ -109,7 +109,7 @@ export default async function HomePage() {
               <Link href="/pricing" className={cx(buttonClass("secondary"), "h-12 px-6 text-[15px]")}>See pricing</Link>
             </div>
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
-              {["No card needed", "Every feature included", "From $10/month after the trial"].map((t) => (
+              {["Free for 14 days, no card", "Every feature included", "Paid plans from $10/month"].map((t) => (
                 <li key={t} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-brand-500" aria-hidden />{t}</li>
               ))}
             </ul>
@@ -214,16 +214,18 @@ export default async function HomePage() {
 
       {/* Pricing */}
       <section id="pricing" className="scroll-mt-20">
-        <div className="mx-auto max-w-4xl px-5 py-20">
-          <SectionTitle eyebrow="Pricing" title={<>Start free for {TRIAL_DAYS} days</>} center>
-            Then pick the plan that fits your team. Simple monthly pricing in USD.
+        <div className="mx-auto max-w-6xl px-5 py-20">
+          <SectionTitle eyebrow="Pricing" title="Simple pricing for every team" center>
+            Start free for {TRIAL_DAYS} days, or go straight to a paid plan. Simple monthly pricing in USD.
           </SectionTitle>
           <div className="mt-12">
-            <PlanCards action={(p) => (
-              <Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass(p.highlight ? "primary" : "secondary"), "w-full")}>
-                {signedIn ? `Choose ${p.name}` : `Start free trial`}
-              </Link>
-            )} />
+            <PlanCards
+              trialAction={<Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass("secondary"), "w-full")}>{signedIn ? "View subscription" : "Start free trial"}</Link>}
+              action={(p) => (
+                <Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass(p.highlight ? "primary" : "secondary"), "w-full")}>
+                  Choose {p.name}
+                </Link>
+              )} />
           </div>
         </div>
       </section>

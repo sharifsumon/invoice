@@ -14,26 +14,28 @@ export default async function PricingPage() {
     <div className="min-h-screen bg-white">
       <MarketingHeader signedIn={signedIn} />
       <main className="bg-gradient-to-b from-brand-50 to-white">
-        <div className="mx-auto max-w-4xl px-5 py-16 md:py-20">
-          <SectionTitle eyebrow="Pricing" title={<>Try everything free for {TRIAL_DAYS} days</>} center>
-            No card needed. After the trial, choose the plan that fits your team — every feature, including the AI assistant, is in both.
+        <div className="mx-auto max-w-6xl px-5 py-16 md:py-20">
+          <SectionTitle eyebrow="Pricing" title="Simple pricing for every team" center>
+            Start free for {TRIAL_DAYS} days, or go straight to a paid plan. Every package includes every feature, including the AI assistant.
           </SectionTitle>
 
           <div className="mx-auto mt-8 flex max-w-xl flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
-            {[`${TRIAL_DAYS}-day free trial`, `Up to ${TRIAL_USER_LIMIT} users while you try it`, "Switch plans any time"].map((t) => (
+            {[`Free for ${TRIAL_DAYS} days, no card`, "Every feature in every package", "Switch plans any time"].map((t) => (
               <span key={t} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-brand-500" aria-hidden />{t}</span>
             ))}
           </div>
 
           <div className="mt-12">
-            <PlanCards action={(p) => (
-              <Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass(p.highlight ? "primary" : "secondary"), "w-full")}>
-                {signedIn ? `Choose ${p.name}` : "Start free trial"}
-              </Link>
-            )} />
+            <PlanCards
+              trialAction={<Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass("secondary"), "w-full")}>{signedIn ? "View subscription" : "Start free trial"}</Link>}
+              action={(p) => (
+                <Link href={signedIn ? "/subscription" : "/login"} className={cx(buttonClass(p.highlight ? "primary" : "secondary"), "w-full")}>
+                  Choose {p.name}
+                </Link>
+              )} />
           </div>
 
-          <div className="mt-12 overflow-hidden rounded-[20px] ring-1 ring-slate-200">
+          <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-[20px] ring-1 ring-slate-200">
             <table className="w-full text-sm">
               <caption className="sr-only">Plan comparison</caption>
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
