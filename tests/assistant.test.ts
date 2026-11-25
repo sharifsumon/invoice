@@ -54,16 +54,18 @@ afterAll(async () => db.$disconnect());
 afterEach(() => vi.unstubAllGlobals());
 
 type Part = Record<string, unknown>;
+/** A streamed (server-sent events) Gemini reply made of the given chunks. */
+const sse = (...chunks: unknown[]) => new Response(chunks.map((c) => `data: ${JSON.stringify(c)}\r\n\r\n`).join(""), { status: 200, headers: { "content-type": "text/event-stream" } });
 /** Fake Gemini: returns the scripted model turns in order and records every request body. */
 function fakeGemini(turns: Part[][]) {
   const bodies: { contents: { role: string; parts: Part[] }[]; tools?: { functionDeclarations: { name: string }[] }[] }[] = [];
   let i = 0;
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
-    expect(url).toContain("models/gemini-test:generateContent");
+    expect(url).toContain("models/gemini-test:streamGenerateContent?alt=sse");
     expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe("AIza-test-key-123");
     bodies.push(JSON.parse(String(init.body)));
     const parts = turns[Math.min(i++, turns.length - 1)];
-    return new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts }, finishReason: "STOP" }] }), { status: 200 });
+    return sse({ candidates: [{ content: { role: "model", parts }, finishReason: "STOP" }] });
   }));
   return bodies;
 }
@@ -114,6 +116,41 @@ describe("AI assistant", () => {
     expect(await db.auditLog.count({ where: { action: "assistant.exported", actorId: admin.id } })).toBe(1);
   });
 
+  it("answers 'largest PO' in one lookup (sort + limit + details), runs parallel lookups, and streams live events", async () => {
+    const bodies = fakeGemini([
+      [
+        { functionCall: { name: "find_purchase_orders", args: { sort_by: "value", order: "desc", limit: 1, include_details: true } } },
+        { functionCall: { name: "summarize_collections", args: { group_by: "month" } } },
+      ],
+      [{ text: "Your largest PO is " }, { text: "big." }],
+    ]);
+    const events: { type: string; label?: string; delta?: string }[] = [];
+    const r = await askAssistant(db, admin, [{ role: "user", text: "Show my largest PO and collections by month" }], { onEvent: (e) => events.push(e) });
+    expect(r.steps).toEqual(["find_purchase_orders", "summarize_collections"]);
+    expect(bodies).toHaveLength(2); // one round of lookups, then the answer
+    const [poRes, colRes] = bodies[1].contents.at(-1)!.parts.map((p) => (p as { functionResponse: { response: { result: Record<string, unknown> } } }).functionResponse.response.result);
+    expect(poRes.total_rows).toBe(1);
+    expect((poRes.details as { po: string }[])[0].po).toBeTruthy(); // milestones/invoices included in the same call
+    expect(Array.isArray((poRes.rows as unknown[][])[0])).toBe(true); // compact rows (arrays, not objects)
+    expect(colRes.table_handle).toBeTruthy();
+    expect(events.filter((e) => e.type === "step").map((e) => e.label)).toEqual(expect.arrayContaining(["Looking up purchase orders", "Totalling payments received", "Writing the answer"]));
+    expect(events.filter((e) => e.type === "text").map((e) => e.delta).join("")).toBe("Your largest PO is big.");
+    expect(r.text).toBe("Your largest PO is big.");
+  });
+
+  it("a call that never answers counts as busy (timeout), so retry / backup kick in", async () => {
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const model = /models\/([^:]+):/.exec(url)![1];
+      seen.push(model);
+      if (model === "gemini-test") { const e = new Error("timed out"); e.name = "TimeoutError"; throw e; }
+      return sse({ candidates: [{ content: { role: "model", parts: [{ text: "ok" }] }, finishReason: "STOP" }] });
+    }));
+    const r = await askAssistant(db, admin, [{ role: "user", text: "hi" }], { retryDelays: [0] });
+    expect(seen).toEqual(["gemini-test", "gemini-test", "gemini-flash-latest"]);
+    expect(r.text).toBe("ok");
+  });
+
   it("only offers tools for areas the user can view, and refuses users without the assistant permission", async () => {
     const g = await createGroup(db, admin, { name: uid("Sales AI"), permissions: { clients: ["view"], assistant: ["view"] } });
     const u = await createUser(db, admin, { name: "Sam", email: `${uid("sam")}@t.local`, groupId: g.id, password: "Sales-pass-123" });
@@ -138,15 +175,15 @@ describe("AI assistant", () => {
       const model = /models\/([^:]+):/.exec(url)![1];
       seen.push(model);
       if (model === "gemini-test") return new Response(JSON.stringify({ error: { message: "This model is currently experiencing high demand." } }), { status: 503 });
-      return new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: "Answer from backup." }] }, finishReason: "STOP" }] }), { status: 200 });
+      return sse({ candidates: [{ content: { role: "model", parts: [{ text: "Answer from " }] } }] }, { candidates: [{ content: { role: "model", parts: [{ text: "backup." }] }, finishReason: "STOP" }] });
     }));
-    const r = await askAssistant(db, admin, [{ role: "user", text: "hello" }], [0, 0]);
+    const r = await askAssistant(db, admin, [{ role: "user", text: "hello" }], { retryDelays: [0, 0] });
     expect(seen).toEqual(["gemini-test", "gemini-test", "gemini-test", "gemini-flash-latest"]); // 3 tries, then backup
     expect(r.text).toBe("Answer from backup.");
     expect(r.steps).toContain("fallback:gemini-flash-latest");
 
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "high demand" } }), { status: 503 })));
-    await expect(askAssistant(db, admin, [{ role: "user", text: "hello" }], [0, 0])).rejects.toThrow(/busy right now/);
+    await expect(askAssistant(db, admin, [{ role: "user", text: "hello" }], { retryDelays: [0, 0] })).rejects.toThrow(/busy right now/);
   });
 
   it("explains a missing key and Google errors in plain language", async () => {

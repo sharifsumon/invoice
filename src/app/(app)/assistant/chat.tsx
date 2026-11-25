@@ -55,14 +55,16 @@ export function Chat({ userName, canExport }: { userName: string; canExport: boo
   });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState(""); // live progress label
+  const [live, setLive] = useState(""); // answer text as it streams in
   const endRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep the conversation for this browser tab
   useEffect(() => {
     try { sessionStorage.setItem(STORE, JSON.stringify(msgs.slice(-40))); } catch { /* ignore */ }
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [msgs, busy]);
+    endRef.current?.scrollIntoView({ behavior: live ? "auto" : "smooth", block: "end" });
+  }, [msgs, busy, step, live]);
 
   async function send(text: string) {
     const q = text.trim();
@@ -71,17 +73,48 @@ export function Chat({ userName, canExport }: { userName: string; canExport: boo
     setMsgs(next);
     setInput("");
     setBusy(true);
+    setStep("Thinking");
+    setLive("");
+    let finished = false;
+    const finish = (m: Msg) => { finished = true; setMsgs((list) => [...list, m]); };
     try {
       const res = await fetch("/api/assistant", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: next.filter((m) => !m.error).map(({ role, text }) => ({ role, text })) }),
       });
-      const data = await res.json().catch(() => ({ error: "The server sent an unexpected response." }));
-      setMsgs((m) => [...m, res.ok ? { role: "assistant", text: data.text, files: data.files } : { role: "assistant", text: data.error ?? "Something went wrong.", error: true }]);
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        finish({ role: "assistant", text: data.error ?? "Something went wrong.", error: true });
+      } else {
+        // Newline-delimited JSON: live steps, streamed answer text, then done / error
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let acc = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i: number;
+          while ((i = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, i);
+            buf = buf.slice(i + 1);
+            if (!line.trim()) continue;
+            const ev = JSON.parse(line);
+            if (ev.type === "step") setStep(ev.label);
+            else if (ev.type === "text") { acc += ev.delta; setLive(acc); }
+            else if (ev.type === "reset") { acc = ""; setLive(""); }
+            else if (ev.type === "done") finish({ role: "assistant", text: ev.text, files: ev.files });
+            else if (ev.type === "error") finish({ role: "assistant", text: ev.error, error: true });
+          }
+        }
+        if (!finished) finish({ role: "assistant", text: acc || "The answer was interrupted. Please try again.", error: !acc });
+      }
     } catch {
-      setMsgs((m) => [...m, { role: "assistant", text: "Couldn't reach the server. Check your connection and try again.", error: true }]);
+      if (!finished) finish({ role: "assistant", text: "Couldn't reach the server. Check your connection and try again.", error: true });
     } finally {
       setBusy(false);
+      setLive("");
       boxRef.current?.focus();
     }
   }
@@ -150,7 +183,18 @@ export function Chat({ userName, canExport }: { userName: string; canExport: boo
         {busy && (
           <div className="flex gap-3" role="status">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lime-soft"><Sparkles className="h-4 w-4 animate-pulse text-brand-700" aria-hidden /></span>
-            <div className="rounded-2xl rounded-tl-md bg-surface px-4 py-3 text-sm text-slate-500">Looking through your data…</div>
+            <div className="min-w-0 max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-4 py-3">
+              {live
+                ? <Answer text={live} />
+                : <span className="inline-flex items-center gap-2 text-sm text-slate-500">
+                    <span className="flex gap-1" aria-hidden>
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.3s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.15s]" />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400" />
+                    </span>
+                    {step || "Thinking"}…
+                  </span>}
+            </div>
           </div>
         )}
         <div ref={endRef} />
