@@ -1,4 +1,6 @@
-# Invoice + CRM
+# InvoiceHub
+
+**[invoicehub.online](https://invoicehub.online)** · The product name and logo live in `src/components/brand.tsx`.
 
 A web app for clients, projects, purchase orders (POs) and invoices, built from *BRD v1.2 – CRM, Project, PO & Invoice Management System*.
 

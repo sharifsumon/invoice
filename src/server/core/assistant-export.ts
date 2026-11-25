@@ -45,7 +45,7 @@ function cell(t: DataTable, kind: ColKind, v: string | number | null | undefined
 
 async function toXlsx(title: string, t: DataTable) {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Invoice+CRM assistant";
+  wb.creator = "InvoiceHub assistant";
   const ws = wb.addWorksheet(title.slice(0, 31).replace(/[\\/?*[\]:]/g, " ") || "Report");
   ws.addRow([title]).font = { bold: true, size: 13 };
   for (const n of t.notes ?? []) ws.addRow([n]).font = { italic: true, color: { argb: "FF666666" } };
@@ -89,7 +89,7 @@ async function toDocx(title: string, t: DataTable) {
     rows.push(new TableRow({ children: t.columns.map((c, i) => mkCell(i === 0 ? "Total" : t.totals![c.key] !== undefined ? cell(t, c.kind, t.totals![c.key]) : "", right(c), true, "F4F6F3")) }));
   }
   const doc = new Document({
-    creator: "Invoice+CRM assistant", title,
+    creator: "InvoiceHub assistant", title,
     sections: [{
       properties: { page: { size: { orientation: t.columns.length > 5 ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT } } },
       children: [

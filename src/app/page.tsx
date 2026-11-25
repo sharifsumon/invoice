@@ -10,7 +10,7 @@ import { MarketingFooter, MarketingHeader, SectionTitle } from "@/components/mar
 import { buttonClass, cx } from "@/components/ui";
 
 export const metadata = {
-  title: "Invoice+CRM — run clients, POs, invoices & payments by chatting with AI",
+  title: { absolute: "InvoiceHub — clients, POs, invoices & payments, with an AI assistant" },
   description: "Clients, projects, purchase orders, automatic invoices and payments in one place — and an AI assistant that does anything you ask. Free for 14 days.",
 };
 

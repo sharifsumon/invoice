@@ -6,7 +6,7 @@ const appSans = DM_Sans({ variable: "--font-app-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Invoice + CRM", template: "%s · Invoice + CRM" },
+  title: { default: "InvoiceHub", template: "%s · InvoiceHub" },
   description: "Clients, projects, purchase orders and invoices",
 };
 

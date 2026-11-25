@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { Bell, ChevronDown, Clock, FilePlus2, LogOut, Search, Settings, ShieldAlert, UserRound } from "lucide-react";
 import { currentSubscription, requireUser } from "@/server/auth";
 import { PLANS } from "@/lib/plans";
+import { APP_NAME, BrandLogo } from "@/components/brand";
 import { maybeScan } from "@/server/core/notifications";
 import { can, type Action, type Module } from "@/server/core/permissions";
 import { getSettings } from "@/server/core/settings";
@@ -25,14 +26,7 @@ const NAV: (NavItem & { module?: Module; action?: Action })[] = [
   { href: "/audit", label: "Audit Log", icon: "audit", module: "audit", section: "Admin" },
 ];
 
-function Logo() {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-[13px] font-bold text-white shadow-sm shadow-brand-600/30">IC</span>
-      <span className="text-[17px] font-semibold tracking-tight text-brand-950">Invoice<span className="text-brand-500">+</span>CRM</span>
-    </span>
-  );
-}
+const Logo = () => <BrandLogo />;
 
 const iconBtn = "relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-lime-soft text-brand-900 transition hover:bg-lime-mid";
 
@@ -166,7 +160,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <main className="w-full max-w-[1500px] flex-1 px-4 pb-8 pt-4 md:px-8">{children}</main>
 
           <footer className="flex flex-wrap items-center justify-between gap-3 px-4 pb-6 text-xs text-slate-500 md:px-8 print:hidden">
-            <span><span className="font-semibold text-slate-700">© {new Date().getFullYear()} {company.displayName || "Invoice + CRM"}</span> · All amounts in {company.defaultCurrency}</span>
+            <span><span className="font-semibold text-slate-700">© {new Date().getFullYear()} {company.displayName || APP_NAME}</span> · All amounts in {company.defaultCurrency}</span>
             <span className="flex gap-5">
               <Link href="/reports" className="hover:text-brand-700">Reports</Link>
               <Link href="/account" className="hover:text-brand-700">My account</Link>

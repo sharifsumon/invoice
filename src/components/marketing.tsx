@@ -2,14 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { TRIAL_DAYS } from "@/lib/plans";
 import { buttonClass, cx } from "./ui";
+import { APP_NAME, BrandLogo } from "./brand";
 
 export function Logo({ light }: { light?: boolean }) {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-[13px] font-bold text-white shadow-sm shadow-brand-600/30">IC</span>
-      <span className={cx("text-[17px] font-semibold tracking-tight", light ? "text-white" : "text-brand-950")}>Invoice<span className="text-brand-400">+</span>CRM</span>
-    </span>
-  );
+  return <BrandLogo light={light} />;
 }
 
 /** Public header: shows "Open dashboard" to signed-in users, sign-in / trial buttons to visitors. */
@@ -17,7 +13,7 @@ export function MarketingHeader({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5">
-        <Link href="/" aria-label="Invoice+CRM home"><Logo /></Link>
+        <Link href="/" aria-label={`${APP_NAME} home`}><Logo /></Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex" aria-label="Site">
           <Link href="/#assistant" className="hover:text-brand-700">AI assistant</Link>
           <Link href="/#features" className="hover:text-brand-700">Features</Link>
@@ -62,7 +58,7 @@ export function MarketingFooter() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/10 py-5 text-center text-xs">© {new Date().getFullYear()} Invoice+CRM. Prices in USD.</div>
+      <div className="border-t border-white/10 py-5 text-center text-xs">© {new Date().getFullYear()} {APP_NAME}. Prices in USD.</div>
     </footer>
   );
 }

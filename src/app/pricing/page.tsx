@@ -6,7 +6,7 @@ import { PlanCards } from "@/components/plan-cards";
 import { MarketingFooter, MarketingHeader, SectionTitle } from "@/components/marketing";
 import { buttonClass, cx } from "@/components/ui";
 
-export const metadata = { title: "Pricing — Invoice+CRM", description: `Free for ${TRIAL_DAYS} days (up to ${TRIAL_USER_LIMIT} users), Starter $10/month for up to 5 users, Team $20/month for up to 10 users.` };
+export const metadata = { title: "Pricing", description: `Free for ${TRIAL_DAYS} days (up to ${TRIAL_USER_LIMIT} users), Starter $10/month for up to 5 users, Team $20/month for up to 10 users.` };
 
 export default async function PricingPage() {
   const signedIn = !!(await getUser());

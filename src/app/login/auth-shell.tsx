@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { BarChart3, FileCheck2, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
+import { APP_NAME, BrandLogo } from "@/components/brand";
 
 const FEATURES = [
   { icon: FileCheck2, title: "Milestone invoicing", text: "Approve a PO and its milestone invoices are drafted for you — never over the PO value." },
@@ -16,10 +18,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
           <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-brand-500/30 blur-3xl" aria-hidden />
           <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-lime-mid/15 blur-3xl" aria-hidden />
 
-          <div className="relative flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-sm font-bold">IC</span>
-            <span className="text-lg font-semibold tracking-tight">Invoice<span className="text-brand-300">+</span>CRM</span>
-          </div>
+          <Link href="/" className="relative mb-10 self-start" aria-label={`${APP_NAME} home`}><BrandLogo light size="lg" /></Link>
 
           <div className="relative my-auto max-w-md">
             <h2 className="text-4xl font-semibold leading-tight tracking-tight">From first call<br />to final payment.</h2>
@@ -43,10 +42,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
 
         <section className="flex items-center justify-center px-6 py-12">
           <div className="w-full max-w-sm">
-            <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-sm font-bold text-white">IC</span>
-              <span className="text-lg font-semibold tracking-tight text-brand-950">Invoice<span className="text-brand-500">+</span>CRM</span>
-            </div>
+            <Link href="/" className="mb-8 inline-flex lg:hidden" aria-label={`${APP_NAME} home`}><BrandLogo size="lg" /></Link>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
             <p className="mt-1.5 text-sm text-slate-500">{subtitle}</p>
             <div className="mt-8">{children}</div>

@@ -540,7 +540,7 @@ function toolsFor(actor: Actor) {
 
 function systemPrompt(ctx: Ctx, company: string, allowed: string[]) {
   return [
-    `You are the analytics assistant inside "${company}"'s Invoice + CRM system. Today is ${day(today())}.`,
+    `You are the analytics assistant inside "${company}"'s InvoiceHub system. Today is ${day(today())}.`,
     `The user is ${ctx.actor.name} (group: ${ctx.actor.groupName}). They may see: ${allowed.join(", ") || "nothing"}. If they ask about anything else, say they don't have access.`,
     `All amounts are in ${ctx.currency} (the company currency). Older amounts in other currencies are already converted by the tools.`,
     "Rules:",
