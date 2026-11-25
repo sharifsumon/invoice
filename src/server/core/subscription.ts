@@ -46,7 +46,7 @@ export function seatProblem(s: Pick<Subscription, "status" | "plan" | "activeUse
   if (s.status === "expired") return "The free trial has ended. Choose a plan under Subscription to add users.";
   if (s.activeUsers < s.userLimit) return null;
   const bigger = PLANS.find((p) => p.userLimit > s.userLimit);
-  return `Your ${s.plan ? `${s.plan.name} plan` : "trial"} allows ${s.userLimit} active users and all are in use.${bigger ? ` Upgrade to ${bigger.name} (${bigger.userLimit} users) under Subscription, or deactivate a user.` : " Deactivate a user first."}`;
+  return `Your ${s.plan ? `${s.plan.name} plan` : "free package"} allows ${s.userLimit} active users and all are in use.${bigger ? ` Upgrade to ${bigger.name} (${bigger.userLimit} users) under Subscription, or deactivate a user.` : " Deactivate a user first."}`;
 }
 
 /** Before adding or re-activating a user: is there a free seat on the current plan? */

@@ -26,10 +26,11 @@ export function MarketingHeader({ signedIn }: { signedIn: boolean }) {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           {signedIn
-            ? <Link href="/dashboard" className={buttonClass("primary")}>Open dashboard</Link>
+            ? <Link href="/dashboard" className={cx(buttonClass("primary"), "whitespace-nowrap")}>Open dashboard</Link>
             : <>
-                <Link href="/login" className={cx(buttonClass("ghost"), "hidden sm:inline-flex")}>Sign in</Link>
-                <Link href="/login" className={buttonClass("primary")}>Start free trial</Link>
+                {/* wrapper hides it on phones (the button's own inline-flex would override `hidden`) */}
+                <span className="hidden sm:block"><Link href="/login" className={cx(buttonClass("ghost"), "whitespace-nowrap")}>Sign in</Link></span>
+                <Link href="/login" className={cx(buttonClass("primary"), "whitespace-nowrap")}>Start free trial</Link>
               </>}
         </div>
       </div>

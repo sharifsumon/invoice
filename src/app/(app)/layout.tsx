@@ -2,6 +2,7 @@ import Link from "next/link";
 import { after } from "next/server";
 import { Bell, ChevronDown, Clock, FilePlus2, LogOut, Search, Settings, ShieldAlert, UserRound } from "lucide-react";
 import { currentSubscription, requireUser } from "@/server/auth";
+import { PLANS } from "@/lib/plans";
 import { maybeScan } from "@/server/core/notifications";
 import { can, type Action, type Module } from "@/server/core/permissions";
 import { getSettings } from "@/server/core/settings";
@@ -133,13 +134,22 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <div className="md:hidden"><MobileNav links={links} /></div>
           </header>
 
-          {sub.status === "trial" && canAdmin && (
-            <div className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-brand-900 px-4 py-2.5 text-sm text-white md:mx-8 print:hidden">
-              <span className="inline-flex items-center gap-2">
+          {/* Everyone on the free package sees how long is left and the upgrade options */}
+          {sub.status === "trial" && (
+            <div role="region" aria-label="Upgrade" className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-brand-900 px-4 py-2.5 text-sm text-white md:mx-8 print:hidden">
+              <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                 <Clock className="h-4 w-4 text-brand-300" aria-hidden />
-                Free trial: <b>{sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left</b> (ends {sub.trialEndsAt.toISOString().slice(0, 10)}).
+                <span>Free package: <b>{sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left</b> · {sub.activeUsers} of {sub.userLimit} users.</span>
+                <span className="text-brand-100/80">Upgrade to keep going after {sub.trialEndsAt.toISOString().slice(0, 10)}.</span>
               </span>
-              <Link href="/subscription" className="rounded-lg bg-white px-3 py-1 text-xs font-semibold text-brand-900 hover:bg-brand-50">Choose a plan</Link>
+              <span className="flex flex-wrap gap-2">
+                {PLANS.map((p) => (
+                  <Link key={p.id} href="/subscription"
+                    className={p.highlight ? "rounded-lg bg-white px-3 py-1 text-xs font-semibold text-brand-900 hover:bg-brand-50" : "rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/30 hover:bg-white/20"}>
+                    Upgrade to {p.name} · ${p.priceUsd}/mo
+                  </Link>
+                ))}
+              </span>
             </div>
           )}
 

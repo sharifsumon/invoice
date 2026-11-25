@@ -14,8 +14,11 @@ test.describe.configure({ mode: "serial" });
 test("public homepage and pricing (no sign-in needed)", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /From first call/ })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Ask in plain language/ })).toBeVisible(); // AI assistant section
-  await expect(page.getByRole("heading", { name: "User groups & permissions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ask the AI assistant anything" })).toBeVisible(); // AI assistant card
+  for (const f of ["Clients & contacts", "Projects", "Purchase orders & milestones", "Automatic invoice creation", "Payments & part payments",
+    "Excel & PDF invoices", "Invoice email", "Notifications", "Global search"]) {
+    await expect(page.getByRole("heading", { name: f, exact: true })).toBeVisible();
+  }
   await expect(page.getByLabel("Starter plan")).toContainText("$10");
   await expect(page.getByLabel("Team plan")).toContainText("$20");
   await page.getByRole("link", { name: "Pricing", exact: true }).first().click();
@@ -28,7 +31,8 @@ test("public homepage and pricing (no sign-in needed)", async ({ page }) => {
   await expect(page.getByLabel("Team plan")).not.toContainText("free trial");
   await expect(page.getByLabel("Starter plan")).toContainText("Most popular");
   await expect(page.getByLabel("Team plan")).not.toContainText("Most popular");
-  await expect(page.getByRole("cell", { name: "Up to 5", exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Up to 5", exact: true })).toHaveCount(2); // free package and Starter
+  await expect(page.getByLabel("Free trial package")).toContainText("Up to 5 users");
   await page.getByRole("link", { name: "Start free trial" }).first().click();
   await expect(page).toHaveURL(/\/login$/);
 });
@@ -176,6 +180,10 @@ test("role-based access: viewer is read-only", async ({ page }) => {
   await login(page, E2E_VIEWER);
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Settings" })).toHaveCount(0);
+  // Everyone on the free package sees the upgrade options (only admins can actually change the plan)
+  await expect(page.getByRole("region", { name: "Upgrade" }).getByRole("link", { name: /Upgrade to Team/ })).toBeVisible();
+  await page.goto("/subscription");
+  await expect(page.getByLabel("Team plan")).toContainText("Ask an administrator to upgrade to Team");
   await page.goto("/settings");
   await expect(page).toHaveURL(/denied=1/);
   await page.goto("/clients");
@@ -236,17 +244,19 @@ test("AI assistant: not set up → points to Settings, where the key is entered"
   // (Saving is checked against Google, so it's covered by unit tests with a fake Google instead of here.)
 });
 
-test("subscription: trial banner, choose a plan", async ({ page }) => {
+test("subscription: free package (5 users) shows upgrade options; upgrade to Starter", async ({ page }) => {
   await login(page, E2E_ADMIN);
-  await expect(page.getByText(/Free trial: 14 days left/)).toBeVisible();
-  await page.getByRole("link", { name: "Choose a plan" }).click();
+  const bar = page.getByRole("region", { name: "Upgrade" });
+  await expect(bar).toContainText(/Free package: 14 days left/);
+  await expect(bar).toContainText(/of 5 users/);
+  await bar.getByRole("link", { name: /Upgrade to Starter/ }).click();
   await expect(page.getByRole("heading", { name: "Subscription", level: 1 })).toBeVisible();
-  await expect(page.getByText(/of 10 active users/)).toBeVisible();
-  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-subscription.png`, fullPage: true });
-  await page.getByLabel("Starter plan").getByRole("button", { name: "Choose Starter" }).click();
-  await expect(page.getByText("Plan changed to Starter")).toBeVisible();
   await expect(page.getByText(/of 5 active users/)).toBeVisible();
-  await expect(page.getByText(/Free trial: 14 days left/)).toHaveCount(0);
+  await expect(page.getByLabel("Free trial package")).toContainText("Your plan");
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-subscription.png`, fullPage: true });
+  await page.getByLabel("Starter plan").getByRole("button", { name: "Upgrade to Starter" }).click();
+  await expect(page.getByText("Plan changed to Starter")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Upgrade" })).toHaveCount(0); // no upgrade bar once on a paid plan
 });
 
 test("two-factor sign-in", async ({ page, context }) => {

@@ -73,13 +73,13 @@ export default async function SubscriptionPage({ searchParams }: PageProps<"/sub
           </div>
         }
         action={(p) => {
-        if (!canManage) return <p className="text-sm text-slate-500">An administrator can change the plan.</p>;
+        if (!canManage) return <p className="rounded-xl bg-slate-50 px-4 py-2.5 text-center text-sm text-slate-500">{sub.plan ? "An administrator can change the plan" : `Ask an administrator to upgrade to ${p.name}`}</p>;
         if (sub.plan?.id === p.id) return <div className="rounded-xl bg-brand-50 px-4 py-2.5 text-center text-sm font-semibold text-brand-800">Current plan</div>;
         const tooSmall = sub.activeUsers > p.userLimit;
         return (
           <ActionForm action={choosePlanAction}>
             <input type="hidden" name="plan" value={p.id} />
-            <SubmitButton className="w-full">{sub.plan ? `Switch to ${p.name}` : `Choose ${p.name}`}</SubmitButton>
+            <SubmitButton className="w-full">{sub.plan ? `Switch to ${p.name}` : `Upgrade to ${p.name}`}</SubmitButton>
             {tooSmall && <p className="text-xs text-rose-600">You have {sub.activeUsers} active users — deactivate some first.</p>}
           </ActionForm>
         );

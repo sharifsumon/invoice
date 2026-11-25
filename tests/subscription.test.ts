@@ -29,7 +29,7 @@ describe("Subscription", () => {
     const created = new Date();
     await db.companySettings.update({ where: { id: 1 }, data: { trialEndsAt: new Date(created.getTime() + TRIAL_DAYS * DAY), plan: null } });
     const s = await getSubscription(db, created);
-    expect(s).toMatchObject({ status: "trial", trialDaysLeft: TRIAL_DAYS, userLimit: 10, plan: null });
+    expect(s).toMatchObject({ status: "trial", trialDaysLeft: TRIAL_DAYS, userLimit: 5, plan: null });
     const later = await getSubscription(db, new Date(created.getTime() + (TRIAL_DAYS + 1) * DAY));
     expect(later.status).toBe("expired");
   });
@@ -52,17 +52,18 @@ describe("Subscription", () => {
   });
 
   it("blocks adding users beyond the limit, and after the trial ends", async () => {
-    expect(seatProblem({ status: "trial", plan: null, activeUsers: 9, userLimit: 10 })).toBeNull();
+    expect(seatProblem({ status: "trial", plan: null, activeUsers: 4, userLimit: 5 })).toBeNull(); // the 5th user fits
+    expect(seatProblem({ status: "trial", plan: null, activeUsers: 5, userLimit: 5 })).toMatch(/free package allows 5.*Upgrade to Team/);
     expect(seatProblem({ status: "active", plan: PLANS[0], activeUsers: 5, userLimit: 5 })).toMatch(/Starter plan allows 5.*Upgrade to Team/);
     expect(seatProblem({ status: "active", plan: PLANS[1], activeUsers: 10, userLimit: 10 })).toMatch(/Deactivate a user first/);
     expect(seatProblem({ status: "expired", plan: null, activeUsers: 1, userLimit: 10 })).toMatch(/trial has ended/);
 
-    // Enforced for real on createUser: fill the trial's 10 seats, then one more is refused
+    // Enforced for real on createUser: fill the free package's 5 seats, then one more is refused
     const g = await groupId(db, Role.VIEWER);
     const { activeUsers } = await getSubscription(db);
-    for (let i = activeUsers; i < 10; i++) await db.user.create({ data: { name: "Seat", email: `${uid("fill")}@t.local`, passwordHash: "x", groupId: g } });
+    for (let i = activeUsers; i < 5; i++) await db.user.create({ data: { name: "Seat", email: `${uid("fill")}@t.local`, passwordHash: "x", groupId: g } });
     process.env.SEAT_LIMITS = "";
-    await expect(assertUserSeat(db)).rejects.toThrow(/allows 10 active users/);
+    await expect(assertUserSeat(db)).rejects.toThrow(/allows 5 active users/);
     await expect(createUser(db, admin, { name: "Over", email: `${uid("over")}@t.local`, groupId: g, password: "Over-limit-123" }))
       .rejects.toThrow(/active users and all are in use/);
   });

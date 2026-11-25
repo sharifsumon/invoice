@@ -25,7 +25,7 @@ export function PlanCards({ action, trialAction, current, onTrial }: {
       <section aria-label="Free trial package" className="relative flex flex-col rounded-[24px] bg-lime-soft/60 p-7 ring-1 ring-lime-mid">
         {onTrial && <span className="absolute -top-3 left-7 rounded-full bg-brand-900 px-3 py-1 text-xs font-semibold text-white">Your plan</span>}
         <h3 className="text-lg font-semibold text-slate-900">{TRIAL_PACKAGE.name}</h3>
-        <p className="mt-1 text-sm text-slate-500">{TRIAL_PACKAGE.tagline}</p>
+        <p className="mt-1 min-h-10 text-sm text-slate-500">{TRIAL_PACKAGE.tagline}</p>
         <p className="mt-5 flex items-baseline gap-1.5">
           <span className="text-4xl font-bold tracking-tight text-brand-950">Free</span>
           <span className="text-sm text-slate-500">for {TRIAL_DAYS} days</span>
@@ -43,7 +43,7 @@ export function PlanCards({ action, trialAction, current, onTrial }: {
             {p.highlight && !isCurrent && <span className="absolute -top-3 left-7 rounded-full bg-brand-500 px-3 py-1 text-xs font-semibold text-white">Most popular</span>}
             {isCurrent && <span className="absolute -top-3 left-7 rounded-full bg-brand-900 px-3 py-1 text-xs font-semibold text-white">Your plan</span>}
             <h3 className="text-lg font-semibold text-slate-900">{p.name}</h3>
-            <p className="mt-1 text-sm text-slate-500">{p.tagline}</p>
+            <p className="mt-1 min-h-10 text-sm text-slate-500">{p.tagline}</p>
             <p className="mt-5 flex items-baseline gap-1.5">
               <span className="text-4xl font-bold tracking-tight text-brand-950">${p.priceUsd}</span>
               <span className="text-sm text-slate-500">USD / month</span>
