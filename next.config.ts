@@ -21,6 +21,8 @@ const csp = [
 // Internal, auth-gated business app: every page is per-user and dynamic, so Cache Components
 // (static shells + "use cache") is intentionally left off.
 const nextConfig: NextConfig = {
+  // The always-on local server (scripts/start-local.ps1) builds into its own folder so test builds don't clash.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   serverExternalPackages: ["pdfkit", "exceljs", "archiver", "nodemailer"],
   experimental: {
