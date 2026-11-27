@@ -35,16 +35,17 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   if (!inv) notFound();
   const [{ template, company }, bal, history] = await Promise.all([
     getSettings(prisma),
-    poBalance(prisma, inv.poId),
+    inv.poId ? poBalance(prisma, inv.poId) : null,
     prisma.auditLog.findMany({ where: { entityType: "Invoice", entityId: id }, orderBy: { createdAt: "desc" }, take: 30, include: { actor: { select: { name: true } } } }),
   ]);
   const isDraft = inv.status === "DRAFT";
   const isCancelled = inv.status === "CANCELLED";
   const canEdit = isDraft && can(user, "invoices", "edit");
-  const poApproved = isPoApproved(inv.po.status);
+  const po = inv.po; // null for an individual invoice
+  const poApproved = !po || isPoApproved(po.status);
   const pendingApproval = isDraft && !poApproved;
   const canFinalize = isDraft && poApproved && can(user, "invoices", "approve");
-  const canApprovePO = pendingApproval && PO_TRANSITIONS[inv.po.status].includes("APPROVED") && can(user, "pos", "approve");
+  const canApprovePO = pendingApproval && !!po && PO_TRANSITIONS[po.status].includes("APPROVED") && can(user, "pos", "approve");
   const siblings = pendingApproval ? await prisma.invoice.count({ where: { poId: inv.poId, status: "DRAFT", kind: "MILESTONE" } }) : 0;
   const canCancel = !isCancelled && can(user, "invoices", "delete") && inv.amountPaid.eq(0);
   const outstanding = isCancelled ? dec(0) : outstandingOf(inv);
@@ -53,7 +54,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
   const canCreateBalance = canBalance && inv.status === "PARTIALLY_PAID" && outstanding.gt(0) && !carriedTo;
   const pdfUrl = `/api/invoices/${inv.id}/pdf`;
   const ownAllocation = isCancelled ? 0 : inv.subtotal.minus(inv.discount);
-  const remainingForDraft = bal.remaining.plus(ownAllocation);
+  const remainingForDraft = bal ? bal.remaining.plus(ownAllocation) : null;
 
   return (
     <>
@@ -65,8 +66,8 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
           {inv.version > 1 && <Badge tone="purple">Revised v{inv.version}</Badge>}</span>}
         subtitle={<>
           <Link href={`/clients/${inv.clientId}`} className="hover:underline">{inv.client.name}</Link> ·{" "}
-          <Link href={`/projects/${inv.projectId}`} className="hover:underline">{inv.project.code}</Link> ·{" "}
-          <Link href={`/pos/${inv.poId}`} className="hover:underline">PO {inv.po.poNumber}</Link>
+          {inv.project && <><Link href={`/projects/${inv.projectId}`} className="hover:underline">{inv.project.code}</Link> ·{" "}</>}
+          {po ? <Link href={`/pos/${inv.poId}`} className="hover:underline">PO {po.poNumber}</Link> : <span>Individual invoice</span>}
           {inv.milestone && <> · Milestone #{inv.milestone.sequence} {inv.milestone.name}</>}
         </>}
         actions={<>
@@ -81,7 +82,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
         <div className="mb-6 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900">
           Balance invoice: carries forward the unpaid balance of{" "}
           <Link href={`/invoices/${inv.balanceOf.id}`} className="font-semibold underline underline-offset-2">{inv.balanceOf.invoiceNumber}</Link>.
-          It is not new billing against the PO.
+          {po ? "It is not new billing against the PO." : "It is not new billing."}
         </div>
       )}
       {carriedTo && (
@@ -97,22 +98,22 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
             confirm={`Create a new invoice for the outstanding ${inv.currency} ${outstanding.toFixed(2)}? This invoice will then show nothing more due.`} />
         </div>
       )}
-      {pendingApproval && (
+      {pendingApproval && po && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-lime-soft px-4 py-3 text-sm text-lime-ink">
           <p className="min-w-0 flex-1">
-            <b>Pending approval.</b> This milestone invoice was drafted when <Link href={`/pos/${inv.poId}`} className="font-semibold underline underline-offset-2">PO {inv.po.poNumber}</Link> was
+            <b>Pending approval.</b> This milestone invoice was drafted when <Link href={`/pos/${inv.poId}`} className="font-semibold underline underline-offset-2">PO {po.poNumber}</Link> was
             submitted. It can be finalized once the PO is approved, and is cancelled automatically if the PO is rejected.
           </p>
           {canApprovePO && (
             <ActionButton action={approvePendingInvoiceAction.bind(null, inv.id)} label="Approve" variant="primary" size="md"
-              confirm={`Approve PO ${inv.po.poNumber}? This approves ${siblings > 1 ? `all ${siblings} of its milestone invoices` : "this invoice"} and makes ${siblings > 1 ? "them" : "it"} ready to finalize.`} />
+              confirm={`Approve PO ${po.poNumber}? This approves ${siblings > 1 ? `all ${siblings} of its milestone invoices` : "this invoice"} and makes ${siblings > 1 ? "them" : "it"} ready to finalize.`} />
           )}
         </div>
       )}
 
       {isCancelled && (
         <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          Cancelled {fmtDate(inv.cancelledAt)} by {inv.cancelledBy?.name ?? "—"}: {inv.cancelReason}. This invoice no longer counts against the PO and is kept for audit.
+          Cancelled {fmtDate(inv.cancelledAt)} by {inv.cancelledBy?.name ?? "—"}: {inv.cancelReason}. {po ? "This invoice no longer counts against the PO and is kept for audit." : "It is kept for audit."}
         </div>
       )}
 
@@ -140,7 +141,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
                 <LineEditor
                   locked={inv.kind === "MILESTONE"}
                   initial={inv.lineItems.map((l) => ({ description: l.description, quantity: l.quantity.toString(), unitPrice: l.unitPrice.toFixed(2) }))}
-                  remaining={inv.kind === "MANUAL" ? remainingForDraft.toFixed(2) : undefined}
+                  remaining={inv.kind === "MANUAL" && remainingForDraft ? remainingForDraft.toFixed(2) : undefined}
                   currency={inv.currency} discount={inv.discount.gt(0) ? inv.discount.toFixed(2) : ""}
                   taxRate={inv.taxRate.toString()} showTax={template.showTax} />
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -201,7 +202,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
               ["Type", labelize(inv.kind)], ["Currency", inv.currency],
               ["Invoice date", fmtDate(inv.invoiceDate)], ["Due date", fmtDate(inv.dueDate)],
               ["Total", <Money key="t" v={inv.total} cur={inv.currency} />],
-              ["PO remaining", <Money key="r" v={bal.remaining} cur={bal.currency} />],
+              ["PO remaining", bal ? <Money key="r" v={bal.remaining} cur={bal.currency} /> : null],
               ["Created", `${fmtDate(inv.createdAt)} by ${inv.createdBy?.name ?? "system"}`],
               ["Finalized", inv.finalizedAt ? `${fmtDate(inv.finalizedAt)} by ${inv.finalizedBy?.name ?? "—"}` : null],
             ]} />
@@ -220,7 +221,7 @@ export default async function InvoicePage({ params, searchParams }: PageProps<"/
                 )}
                 <ActionButton action={cancelAction.bind(null, inv.id)} label={isDraft ? "Cancel draft" : "Cancel invoice"} variant="danger"
                   reasonPrompt="Reason for cancellation (kept in the audit trail)" />
-                <p className="text-xs text-slate-400">Cancelling releases this invoice&apos;s amount back to the PO balance.</p>
+                {po && <p className="text-xs text-slate-400">Cancelling releases this invoice&apos;s amount back to the PO balance.</p>}
               </div>
             </Card>
           )}

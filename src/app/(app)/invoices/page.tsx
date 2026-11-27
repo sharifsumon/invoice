@@ -31,6 +31,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
         actions={<>
           {canExport && <><a href={`/api/invoices/export?${qs}`} className={buttonClass("secondary")}>Export CSV</a>
           <a href={`/api/invoices/export?${qs}${qs ? "&" : ""}format=xlsx`} className={buttonClass("secondary")}>Export Excel</a></>}
+          {can(user, "invoices", "create") && <Link href="/invoices/new" className={buttonClass("primary")}>Create invoice</Link>}
         </>} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -69,10 +70,10 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/invoice
                       <> · <Link href={`/invoices/${i.id}#email`} className="text-brand-600 hover:underline">Email</Link></>
                     )}</div></Td>
                 <Td>{i.client.name}</Td>
-                <Td>{i.project.code}<div className="text-xs text-slate-400">PO {i.po.poNumber}</div></Td>
+                <Td>{i.project && i.po ? <>{i.project.code}<div className="text-xs text-slate-400">PO {i.po.poNumber}</div></> : <span className="text-slate-500">Individual</span>}</Td>
                 <Td>{fmtDate(i.invoiceDate)}</Td>
                 <Td>{fmtDate(i.dueDate)}</Td>
-                <Td><span className="flex flex-wrap gap-1"><StatusBadge status={i.status} pending={!isPoApproved(i.po.status)} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
+                <Td><span className="flex flex-wrap gap-1"><StatusBadge status={i.status} pending={!!i.po && !isPoApproved(i.po.status)} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                 <Td><Money v={i.total} cur={i.currency} /></Td>
                 <Td>{i.status === "CANCELLED" ? "—" : <Money v={outstandingOf(i)} cur={i.currency} />}</Td>
               </tr>

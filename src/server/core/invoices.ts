@@ -14,7 +14,12 @@ export const lineInput = z.object({
 });
 
 export const manualInvoiceInput = z.object({
-  poId: z.string().min(1),
+  /** Against a PO… */
+  poId: z.string().optional().transform((v) => v || null),
+  /** …or an individual invoice straight to a client (no PO / project). */
+  clientId: z.string().optional().transform((v) => v || null),
+  currency: z.string().optional().transform((v) => (v || "").trim().toUpperCase() || null),
+  invoiceDate: z.string().optional(),
   milestoneId: z.string().optional().transform((v) => v || null),
   lines: z.array(lineInput).min(1, "Add at least one line").max(200),
   discount: z.string().optional(),
@@ -55,9 +60,12 @@ export async function createManualInvoice(db: Db, actor: Actor, raw: ManualInvoi
   if (subtotal.lte(0)) throw new RuleError("Invoice amount must be greater than zero");
   const t = computeTotals(subtotal, data.discount, data.taxRate);
 
+  if (!data.poId) return createStandaloneInvoice(db, actor, data, lines, subtotal, t);
+  const poId = data.poId;
+
   return inTx(db, async (tx) => {
-    await lockPO(tx, data.poId);
-    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: data.poId } });
+    await lockPO(tx, poId);
+    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId } });
     if (po.status !== POStatus.APPROVED) throw new RuleError("Manual invoices can only be created against an approved PO");
 
     if (data.milestoneId) {
@@ -104,6 +112,55 @@ export async function createManualInvoice(db: Db, actor: Actor, raw: ManualInvoi
   });
 }
 
+/** Individual invoice: billed straight to a client, no PO or project, so no PO cap applies. */
+async function createStandaloneInvoice(
+  db: Db, actor: Actor, data: z.output<typeof manualInvoiceInput>,
+  lines: ReturnType<typeof computeLines>, subtotal: ReturnType<typeof dec>, t: ReturnType<typeof computeTotals>,
+) {
+  if (!data.clientId) throw new RuleError("Choose a client");
+  if (data.milestoneId) throw new RuleError("Milestones belong to a PO");
+  const clientId = data.clientId;
+  return inTx(db, async (tx) => {
+    const client = await tx.client.findUnique({ where: { id: clientId } });
+    if (!client) throw new RuleError("Client not found");
+    if (client.archived) throw new RuleError("Archived clients cannot be invoiced");
+    const company = await tx.companySettings.findUnique({ where: { id: 1 } });
+    const template = await tx.invoiceTemplateSettings.findUnique({ where: { id: 1 } });
+    const currency = data.currency || company?.defaultCurrency || "USD";
+    if (!/^[A-Z]{3}$/.test(currency)) throw new RuleError("Currency must be a 3-letter code, e.g. USD");
+    const invoiceDate = parseDate(data.invoiceDate || null);
+    const dueDate = parseDate(data.dueDate || null);
+    if (invoiceDate && dueDate && dueDate < invoiceDate) throw new RuleError("Due date cannot be before the invoice date");
+    const inv = await tx.invoice.create({
+      data: {
+        kind: InvoiceKind.MANUAL,
+        status: InvoiceStatus.DRAFT,
+        clientId: client.id,
+        currency,
+        subtotal,
+        discount: t.discount,
+        taxRate: t.taxRate,
+        taxAmount: t.taxAmount,
+        total: t.total,
+        invoiceDate,
+        dueDate,
+        notes: data.notes?.trim() || company?.defaultNotes || null,
+        terms: data.terms?.trim() || template?.defaultTerms || null,
+        createdById: actor.id,
+        lineItems: { create: lines },
+      },
+    });
+    await audit(tx, actor, "invoice.created", "Invoice", inv.id, { after: { ...inv, lines, standalone: true } });
+    return inv;
+  });
+}
+
+/** Serialize changes to one invoice: through its PO when it has one (PO cap), else on the invoice row. */
+async function lockScope(tx: Tx, inv: { id: string; poId: string | null }) {
+  if (inv.poId) await lockPO(tx, inv.poId);
+  else await tx.$queryRaw`SELECT "id" FROM "Invoice" WHERE "id" = ${inv.id} FOR UPDATE`;
+}
+
 export const draftUpdateInput = z.object({
   lines: z.array(lineInput).min(1).max(200).optional(),
   discount: z.string().optional(),
@@ -120,7 +177,7 @@ export async function updateDraftInvoice(db: Db, actor: Actor, id: string, raw: 
   const data = draftUpdateInput.parse(raw);
   return inTx(db, async (tx) => {
     const cur = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { lineItems: true } });
-    await lockPO(tx, cur.poId);
+    await lockScope(tx, cur);
     const before = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { lineItems: true } });
     if (before.status !== InvoiceStatus.DRAFT) throw new RuleError("Only draft invoices can be edited. Use cancel & reissue for finalized invoices.");
 
@@ -134,7 +191,7 @@ export async function updateDraftInvoice(db: Db, actor: Actor, id: string, raw: 
     const discount = before.kind === InvoiceKind.MILESTONE ? "0" : (data.discount ?? before.discount.toString());
     const t = computeTotals(subtotal, discount, data.taxRate ?? before.taxRate.toString());
 
-    if (before.kind === InvoiceKind.MANUAL) {
+    if (before.kind === InvoiceKind.MANUAL && before.poId) {
       const bal = await poBalance(tx, before.poId);
       const available = bal.remaining.plus(before.subtotal.minus(before.discount));
       if (t.net.gt(available)) {
@@ -215,8 +272,8 @@ export async function buildSnapshot(tx: Db | Tx, invoiceId: string, override?: {
       name: inv.client.name, legalName: inv.client.legalName, address: inv.client.address, country: inv.client.country,
       taxId: inv.client.taxId, email: inv.client.email, contactName: contact?.name ?? null, contactEmail: contact?.email ?? null,
     },
-    project: { code: inv.project.code, name: inv.project.name },
-    po: { poNumber: inv.po.poNumber },
+    project: inv.project ? { code: inv.project.code, name: inv.project.name } : null,
+    po: inv.po ? { poNumber: inv.po.poNumber } : null,
     invoice: {
       number: override?.number ?? inv.invoiceNumber,
       date: iso(override?.date ?? inv.invoiceDate),
@@ -288,7 +345,7 @@ export async function finalizeInvoice(db: Db, actor: Actor, id: string, opts: { 
   if (!can(actor, "invoices", "approve")) throw new ForbiddenError("invoices", "approve");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
-    await lockPO(tx, pre.poId);
+    await lockScope(tx, pre);
     return finalizeInvoiceTx(tx, actor, id, opts);
   });
 }
@@ -298,9 +355,11 @@ async function finalizeInvoiceTx(tx: Tx, actor: Actor, id: string, opts: { invoi
   {
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id } });
     if (inv.status !== InvoiceStatus.DRAFT) throw new RuleError("Only draft invoices can be finalized");
-    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: inv.poId }, select: { status: true, poNumber: true } });
-    if (po.status !== POStatus.APPROVED && po.status !== POStatus.COMPLETED) {
-      throw new RuleError(`This invoice is pending approval — approve PO ${po.poNumber} before finalizing it`);
+    if (inv.poId) {
+      const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: inv.poId }, select: { status: true, poNumber: true } });
+      if (po.status !== POStatus.APPROVED && po.status !== POStatus.COMPLETED) {
+        throw new RuleError(`This invoice is pending approval — approve PO ${po.poNumber} before finalizing it`);
+      }
     }
 
     const company = await tx.companySettings.findUniqueOrThrow({ where: { id: 1 } });
@@ -337,7 +396,7 @@ export async function createBalanceInvoice(db: Db, actor: Actor, invoiceId: stri
   if (!can(actor, "invoices", "create") || !can(actor, "invoices", "approve")) throw new ForbiddenError("invoices", "create");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
-    await lockPO(tx, pre.poId);
+    await lockScope(tx, pre);
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
     if (inv.status !== InvoiceStatus.PARTIALLY_PAID) throw new RuleError("A balance invoice can only be created for a partially paid invoice");
     const remaining = outstandingOf(inv);
@@ -375,7 +434,7 @@ export async function cancelInvoice(db: Db, actor: Actor, id: string, reason: st
   if (!reason?.trim()) throw new RuleError("A cancellation reason is required");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
-    await lockPO(tx, pre.poId);
+    await lockScope(tx, pre);
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id } });
     if (inv.status === InvoiceStatus.CANCELLED) throw new RuleError("Invoice is already cancelled");
     if (inv.amountPaid.gt(0)) throw new RuleError("An invoice with recorded payments cannot be cancelled. Reverse the payments first.");
@@ -405,7 +464,7 @@ export async function cancelAndReissue(db: Db, actor: Actor, id: string, reason:
   if (!reason?.trim()) throw new RuleError("A reason is required to reissue an invoice");
   return inTx(db, async (tx) => {
     const pre = await tx.invoice.findUniqueOrThrow({ where: { id } });
-    await lockPO(tx, pre.poId);
+    await lockScope(tx, pre);
     const inv = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { lineItems: { orderBy: { sequence: "asc" } } } });
     if (inv.status === InvoiceStatus.CANCELLED) throw new RuleError("Invoice is already cancelled");
     if (inv.status === InvoiceStatus.DRAFT) throw new RuleError("Draft invoices can simply be edited");

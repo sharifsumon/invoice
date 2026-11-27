@@ -116,7 +116,7 @@ async function invoiceDetails(ctx: Ctx, where: Prisma.InvoiceWhereInput): Promis
   if (!inv) return null;
   return {
     invoice: inv.invoiceNumber ?? "Draft", link: `/invoices/${inv.id}`, type: inv.kind, status: inv.status, overdue: isOverdue(inv),
-    client: inv.client.name, project: `${inv.project.code} — ${inv.project.name}`, po: `${inv.po.poNumber} (${inv.po.status})`,
+    client: inv.client.name, project: inv.project ? `${inv.project.code} — ${inv.project.name}` : null, po: inv.po ? `${inv.po.poNumber} (${inv.po.status})` : "Individual invoice (no PO)",
     milestone: inv.milestone ? `#${inv.milestone.sequence} ${inv.milestone.name}` : null,
     invoice_date: day(inv.invoiceDate), due_date: day(inv.dueDate), currency: inv.currency,
     subtotal: num(inv.subtotal), discount: num(inv.discount), tax_rate_percent: num(inv.taxRate), tax: num(inv.taxAmount), total: num(inv.total),
@@ -218,7 +218,7 @@ const TOOLS: Tool[] = [
       });
       if (a.overdue_only) invs = invs.filter(isOverdue);
       const rows = sortLimit(invs.map((i) => ({
-        number: i.invoiceNumber ?? "Draft", client: i.client.name, project: i.project.code, po: i.po.poNumber, kind: i.kind,
+        number: i.invoiceNumber ?? "Draft", client: i.client.name, project: i.project?.code ?? null, po: i.po?.poNumber ?? null, kind: i.kind,
         status: isOverdue(i) ? `${i.status} (OVERDUE)` : i.status, date: day(i.invoiceDate), due: day(i.dueDate),
         total: cc(ctx, i.total, i.currency, i.invoiceDate), paid: cc(ctx, i.amountPaid, i.currency, i.invoiceDate),
         outstanding: i.status === "CANCELLED" || i.status === "DRAFT" ? 0 : cc(ctx, outstandingOf(i), i.currency, i.invoiceDate),
@@ -413,7 +413,7 @@ const TOOLS: Tool[] = [
       });
       const groups = new Map<string, { invoiced: number; collected: number; outstanding: number; overdue: number; count: number }>();
       for (const i of invs) {
-        const k = by === "project" ? i.project.code : by === "po" ? i.po.poNumber : by === "month" ? (i.invoiceDate ? i.invoiceDate.toISOString().slice(0, 7) : "no date") : by === "status" ? i.status : i.client.name;
+        const k = by === "project" ? (i.project?.code ?? "no project") : by === "po" ? (i.po?.poNumber ?? "no PO") : by === "month" ? (i.invoiceDate ? i.invoiceDate.toISOString().slice(0, 7) : "no date") : by === "status" ? i.status : i.client.name;
         const g = groups.get(k) ?? { invoiced: 0, collected: 0, outstanding: 0, overdue: 0, count: 0 };
         if (i.kind !== "BALANCE") { g.invoiced += cc(ctx, i.total, i.currency, i.invoiceDate) ?? 0; g.count++; }
         g.collected += cc(ctx, i.amountPaid, i.currency, i.invoiceDate) ?? 0;

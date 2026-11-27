@@ -164,7 +164,7 @@ export const REPORTS: ReportDef[] = [
           const bal = outstandingOf(i);
           const on = i.invoiceDate ?? i.createdAt;
           return {
-            invoice: { text: i.invoiceNumber ?? "Draft", href: `/invoices/${i.id}` }, client: i.client.name, project: i.project.code, po: i.po.poNumber,
+            invoice: { text: i.invoiceNumber ?? "Draft", href: `/invoices/${i.id}` }, client: i.client.name, project: i.project?.code ?? "—", po: i.po?.poNumber ?? "—",
             date: i.invoiceDate, due: i.dueDate, status: i.status,
             overdue: OPEN.includes(i.status) && i.dueDate && i.dueDate < t && bal.gt(0) ? "Yes" : "",
             total: live && i.kind !== "BALANCE" ? m(i.total, i.currency, on) : null, paid: live ? m(i.amountPaid, i.currency, on) : null, balance: live ? m(bal, i.currency, on) : null,
@@ -195,7 +195,7 @@ export const REPORTS: ReportDef[] = [
         ],
         rows: ps.map((p) => ({
           date: p.paymentDate, invoice: { text: p.invoice.invoiceNumber ?? "—", href: `/invoices/${p.invoice.id}` }, client: p.invoice.client.name,
-          project: p.invoice.project.code, method: p.method, reference: p.reference, amount: m(p.amount, p.currency, p.paymentDate),
+          project: p.invoice.project?.code ?? "—", method: p.method, reference: p.reference, amount: m(p.amount, p.currency, p.paymentDate),
         })),
         notes: ["Reversed payments are excluded."],
       };

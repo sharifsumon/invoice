@@ -183,7 +183,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps<"/
                     {project.invoices.map((i) => (
                       <tr key={i.id}>
                         <Td><Link href={`/invoices/${i.id}`} className="font-medium text-brand-700 hover:underline">{i.invoiceNumber ?? "Draft"}</Link></Td>
-                        <Td>{i.po.poNumber}</Td>
+                        <Td>{i.po?.poNumber ?? "—"}</Td>
                         <Td><span className="flex gap-1"><StatusBadge status={i.status} />{isOverdue(i) && <StatusBadge status="OVERDUE" />}</span></Td>
                         <Td>{fmtDate(i.dueDate)}</Td>
                         <Td><Money v={i.total} cur={i.currency} /></Td>

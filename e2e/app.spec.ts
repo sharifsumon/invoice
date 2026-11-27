@@ -176,6 +176,83 @@ test("full lifecycle: client → project → PO → milestone invoices → payme
   await expect(page.getByRole("link", { name: /Orbit Labs/ }).first()).toBeVisible();
 });
 
+test("individual invoice from the Invoices page (no PO)", async ({ page }) => {
+  await login(page, E2E_ADMIN);
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
+  await page.goto("/invoices");
+  await page.getByRole("link", { name: "Create invoice" }).click();
+  await expect(page.getByRole("heading", { name: "Create invoice", level: 1 })).toBeVisible();
+  await page.getByLabel("Client *").selectOption({ label: "Orbit Labs" });
+  await page.getByLabel("Description").fill("Strategy workshop");
+  await page.getByLabel("Quantity").fill("2");
+  await page.getByLabel("Rate").fill("750");
+  await page.getByLabel("Notes").fill("Thank you for your business.");
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-create-invoice.png`, fullPage: true });
+  await page.getByRole("button", { name: "Create draft invoice" }).click();
+  await expect(page.getByRole("heading", { name: /Draft invoice/ })).toBeVisible();
+  await expect(page.getByText("Individual invoice")).toBeVisible();
+  await page.getByRole("button", { name: "Finalize invoice" }).click();
+  await expect(page.getByText(/Finalized as INV/)).toBeVisible();
+  await page.goto("/invoices?q=Orbit");
+  await expect(page.getByRole("cell", { name: "Individual" }).first()).toBeVisible();
+});
+
+test("requisitions: raise, submit, approve and fulfil", async ({ page }) => {
+  page.on("dialog", (d) => d.accept());
+  await login(page, E2E_VIEWER);
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
+  // Viewers can see requisitions but not raise them
+  await page.goto("/requisitions");
+  await expect(page.getByRole("heading", { name: "Requisitions", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "New requisition" })).toHaveCount(0);
+  await page.context().clearCookies();
+
+  await login(page, E2E_ADMIN);
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
+  // Departments are set up by an admin first, then picked from a dropdown
+  await page.getByRole("link", { name: "Requisitions" }).first().click();
+  await page.getByRole("link", { name: "Manage departments" }).click();
+  await expect(page.getByRole("heading", { name: "Departments", level: 1 })).toBeVisible();
+  for (const d of ["Engineering", "Design"]) {
+    await page.getByLabel("Department name").fill(d);
+    await page.getByRole("button", { name: "Add department" }).click();
+    await expect(page.getByText(`Department added: ${d}`)).toBeVisible();
+  }
+  await page.getByRole("link", { name: "Rename Design" }).click();
+  await page.getByLabel("New name for Design").fill("Product Design");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Department renamed to Product Design")).toBeVisible();
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-departments.png`, fullPage: true });
+
+  await page.getByRole("link", { name: "Go to requisitions" }).click();
+  await page.getByRole("link", { name: "New requisition" }).click();
+  await expect(page.getByLabel("Project (optional)")).toHaveCount(0);
+  await page.getByLabel("Title *").fill("Laptops for new hires");
+  await page.getByLabel("Department").selectOption({ label: "Engineering" });
+  await expect(page.getByLabel("Department").locator("option")).toHaveText(["— Select department —", "Engineering", "Product Design"]);
+  await page.getByLabel("Priority").selectOption("HIGH");
+  await page.getByLabel("Item", { exact: true }).fill("Laptop, 16 GB RAM");
+  await page.getByLabel("Quantity").fill("3");
+  await page.getByLabel("Unit", { exact: true }).fill("pcs");
+  await page.getByLabel("Estimated unit price").fill("1100");
+  await page.getByRole("button", { name: "+ Add item" }).click();
+  await page.getByLabel("Item", { exact: true }).nth(1).fill("Laptop bag");
+  await page.getByLabel("Quantity").nth(1).fill("3");
+  await expect(page.getByText("3300.00").last()).toBeVisible();
+  await page.getByLabel("Purpose / justification").fill("Three engineers start next month.");
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-requisition-new.png`, fullPage: true });
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(page.getByText("Requisition submitted")).toBeVisible();
+  await expect(page.getByText(/REQ-\d{4}-\d{4}/)).toBeVisible();
+  await page.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByText("Requisition approved")).toBeVisible();
+  await page.getByRole("button", { name: "Mark fulfilled" }).click();
+  await expect(page.getByText("Requisition marked fulfilled")).toBeVisible();
+  if (process.env.E2E_SHOT) await page.screenshot({ path: `${process.env.E2E_SHOT}-requisition.png`, fullPage: true });
+  await page.goto("/requisitions");
+  await expect(page.getByRole("link", { name: "Laptops for new hires" })).toBeVisible();
+});
+
 test("role-based access: viewer is read-only", async ({ page }) => {
   await login(page, E2E_VIEWER);
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();

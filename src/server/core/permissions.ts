@@ -4,7 +4,7 @@
  * cancels a project / PO / invoice, or deactivates a user.
  */
 
-export type Module = "clients" | "projects" | "pos" | "invoices" | "users" | "reports" | "audit" | "settings" | "assistant";
+export type Module = "clients" | "projects" | "pos" | "invoices" | "requisitions" | "users" | "reports" | "audit" | "settings" | "assistant";
 export type Action = "view" | "create" | "edit" | "delete" | "approve" | "payments" | "email" | "export" | "groups" | "administer";
 export type Perms = Partial<Record<Module, Action[]>>;
 
@@ -22,6 +22,11 @@ export const MODULES: { key: Module; label: string; actions: { key: Action; labe
   { key: "invoices", label: "Invoices", actions: [
     { key: "view" }, { key: "create" }, { key: "edit" }, { key: "delete", hint: "Cancel" }, { key: "approve", label: "Finalize" },
     { key: "payments", label: "Payments", hint: "Record / reverse" }, { key: "email" }, { key: "export" },
+  ] },
+  { key: "requisitions", label: "Requisitions", actions: [
+    { key: "view", hint: "See everyone's requisitions" }, { key: "create", hint: "Raise and manage own requisitions" },
+    { key: "edit", hint: "Edit anyone's" }, { key: "delete", hint: "Cancel anyone's" },
+    { key: "approve", hint: "Approve / reject / fulfil" }, { key: "export" },
   ] },
   { key: "users", label: "Users", actions: [
     { key: "view" }, { key: "create" }, { key: "edit" }, { key: "delete", hint: "Deactivate" }, { key: "groups", label: "Manage groups", hint: "Groups & permissions" },

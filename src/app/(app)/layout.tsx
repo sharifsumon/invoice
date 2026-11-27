@@ -19,9 +19,11 @@ const NAV: (NavItem & { module?: Module; action?: Action })[] = [
   { href: "/pos", label: "Purchase Orders", icon: "pos", module: "pos", section: "Finance" },
   { href: "/invoices", label: "Invoices", icon: "invoices", module: "invoices", section: "Finance" },
   { href: "/reports", label: "Reports", icon: "reports", module: "reports", section: "Finance" },
+  { href: "/requisitions", label: "Requisitions", icon: "requisitions", module: "requisitions", section: "Operations" },
   { href: "/settings", label: "Settings", icon: "settings", module: "settings", action: "administer", section: "Admin" },
   { href: "/subscription", label: "Subscription", icon: "subscription", module: "settings", action: "administer", section: "Admin" },
   { href: "/users", label: "Users", icon: "users", module: "users", section: "Admin" },
+  { href: "/departments", label: "Departments", icon: "departments", module: "settings", action: "administer", section: "Admin" },
   { href: "/users/groups", label: "User groups", icon: "groups", module: "users", action: "groups", section: "Admin" },
   { href: "/audit", label: "Audit Log", icon: "audit", module: "audit", section: "Admin" },
 ];
@@ -60,7 +62,7 @@ function initials(name: string) {
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser({ allowExpired: true });
   const links: NavItem[] = NAV
-    .filter((n) => !n.module || can(user, n.module, n.action ?? "view"))
+    .filter((n) => !n.module || can(user, n.module, n.action ?? "view") || (n.module === "requisitions" && can(user, "requisitions", "create")))
     .map(({ href, label, icon, section }) => ({ href, label, icon, section }));
   const [unread, { company }, sub] = await Promise.all([
     prisma.notification.count({ where: { userId: user.id, readAt: null } }),

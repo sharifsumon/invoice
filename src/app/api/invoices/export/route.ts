@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     "Currency", "Subtotal", "Discount", "Tax", "Total", "Paid", "Balance", "Version"];
   const d = (x: Date | null) => (x ? x.toISOString().slice(0, 10) : "");
   const rows = invoices.map((i) => [
-    i.invoiceNumber ?? "DRAFT", i.status, isOverdue(i) ? "YES" : "", i.kind, i.client.name, i.project.code, i.project.name, i.po.poNumber,
+    i.invoiceNumber ?? "DRAFT", i.status, isOverdue(i) ? "YES" : "", i.kind, i.client.name, i.project?.code ?? "", i.project?.name ?? "Individual invoice", i.po?.poNumber ?? "",
     d(i.invoiceDate), d(i.dueDate), i.currency, i.subtotal.toFixed(2), i.discount.toFixed(2), i.taxAmount.toFixed(2), i.total.toFixed(2),
     i.amountPaid.toFixed(2), i.status === "CANCELLED" ? "0.00" : outstandingOf(i).toFixed(2), String(i.version),
   ]);

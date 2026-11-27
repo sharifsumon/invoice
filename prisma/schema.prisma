@@ -56,6 +56,8 @@ model User {
   paymentsRecorded  Payment[]         @relation("PaymentRecordedBy")
   paymentsReversed  Payment[]         @relation("PaymentReversedBy")
   emailsSent        InvoiceEmailLog[]
+  requisitions         Requisition[] @relation("RequisitionRequestedBy")
+  requisitionsDecided  Requisition[] @relation("RequisitionDecidedBy")
 }
 
 // ───────────── Clients ─────────────
@@ -176,6 +178,78 @@ model Project {
   @@index([approved, approvalDate])
 }
 
+// ───────────── Requisitions (internal item requests) ─────────────
+
+enum RequisitionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  FULFILLED
+  CANCELLED
+}
+
+enum RequisitionPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Requisition {
+  id             String              @id @default(cuid())
+  number         String?             @unique // assigned when submitted, e.g. REQ-2026-0001
+  title          String
+  departmentId   String?
+  department     Department?         @relation(fields: [departmentId], references: [id])
+  priority      RequisitionPriority @default(NORMAL)
+  neededBy       DateTime?           @db.Date
+  deliverTo      String?
+  purpose        String?
+  currency       String              @db.Char(3)
+  estimatedTotal Decimal             @default(0) @db.Decimal(18, 2)
+  status         RequisitionStatus   @default(DRAFT)
+  requestedById  String
+  requestedBy    User                @relation("RequisitionRequestedBy", fields: [requestedById], references: [id])
+  submittedAt    DateTime?
+  decidedById    String?
+  decidedBy      User?               @relation("RequisitionDecidedBy", fields: [decidedById], references: [id])
+  decidedAt      DateTime?
+  decisionNote   String?
+  fulfilledAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  items RequisitionItem[]
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([departmentId])
+}
+
+/// Departments a requisition can be raised for (managed by administrators).
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requisitions Requisition[]
+}
+
+model RequisitionItem {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  sequence      Int
+  description   String
+  quantity      Decimal     @db.Decimal(18, 4)
+  unit          String?
+  unitPrice     Decimal?    @db.Decimal(18, 2) // estimated
+  amount        Decimal     @default(0) @db.Decimal(18, 2)
+}
+
 // ───────────── Purchase orders ─────────────
 
 enum POStatus {
@@ -256,10 +330,11 @@ model Invoice {
   status        InvoiceStatus @default(DRAFT)
   clientId      String
   client        Client        @relation(fields: [clientId], references: [id])
-  projectId     String
-  project       Project       @relation(fields: [projectId], references: [id])
-  poId          String
-  po            PurchaseOrder @relation(fields: [poId], references: [id])
+  /// Project and PO are empty for an individual (standalone) MANUAL invoice raised straight to a client.
+  projectId     String?
+  project       Project?       @relation(fields: [projectId], references: [id])
+  poId          String?
+  po            PurchaseOrder? @relation(fields: [poId], references: [id])
   milestoneId   String?
   milestone     PaymentMilestone? @relation(fields: [milestoneId], references: [id])
 

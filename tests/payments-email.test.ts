@@ -52,7 +52,7 @@ describe("Balance invoices (carry the unpaid part forward)", () => {
     const orig = await db.invoice.findUniqueOrThrow({ where: { id: inv.id } });
     expect(orig.status).toBe(InvoiceStatus.PARTIALLY_PAID);
     expect(outstandingOf(orig).toString()).toBe("0");
-    const b = await poBalance(db, inv.poId);
+    const b = await poBalance(db, inv.poId!);
     expect(b.invoiced.toString()).toBe("3000");      // not new billing (PO cap untouched)
     expect(b.outstanding.toString()).toBe("2000");   // counted once, on the balance invoice
     expect(b.paid.toString()).toBe("1000");
@@ -66,7 +66,7 @@ describe("Balance invoices (carry the unpaid part forward)", () => {
     // Paying the balance invoice in full
     await recordPayment(db, finance, bal.id, pay("2000"));
     expect((await db.invoice.findUniqueOrThrow({ where: { id: bal.id } })).status).toBe(InvoiceStatus.PAID);
-    expect((await poBalance(db, inv.poId)).outstanding.toString()).toBe("0");
+    expect((await poBalance(db, inv.poId!)).outstanding.toString()).toBe("0");
   });
 
   it("cancelling the balance invoice puts the balance back on the original", async () => {
@@ -112,7 +112,7 @@ describe("Payments (BRD §5.6, BR-11)", () => {
 
   it("rejects payments on draft invoices", async () => {
     const issued = await issuedInvoice("500");
-    const po = await createPO(db, finance, { poNumber: uid("PO"), projectId: issued.projectId, poDate: "2026-01-01", value: "300" });
+    const po = await createPO(db, finance, { poNumber: uid("PO"), projectId: issued.projectId!, poDate: "2026-01-01", value: "300" });
     await approvePO(db, finance, po.id);
     const draft = await createManualInvoice(db, finance, { poId: po.id, lines: [{ description: "Draft work", unitPrice: "300" }] });
     await expect(recordPayment(db, finance, draft.id, pay("10"))).rejects.toThrow(/finalized/);

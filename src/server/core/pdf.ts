@@ -16,8 +16,9 @@ export interface InvoiceSnapshot {
     name: string; legalName: string | null; address: string | null; country: string | null; taxId: string | null;
     email: string | null; contactName: string | null; contactEmail: string | null;
   };
-  project: { code: string; name: string };
-  po: { poNumber: string };
+  /** Empty for individual invoices (no project / PO). */
+  project: { code: string; name: string } | null;
+  po: { poNumber: string } | null;
   invoice: {
     number: string | null; date: string | null; dueDate: string | null; currency: string; kind: string;
     lines: { description: string; quantity: string; unitPrice: string; amount: string }[];
@@ -135,8 +136,8 @@ export function renderInvoicePdf(s: InvoiceSnapshot, opts: { logo?: Buffer | nul
     const billBottom = doc.y;
     doc.fontSize(9).fillColor("#333333");
     const refs: [string, string][] = [
-      ["Project", `${s.project.name} (${s.project.code})`],
-      ["PO Number", s.po.poNumber],
+      ...(s.project ? [["Project", `${s.project.name} (${s.project.code})`] as [string, string]] : []),
+      ...(s.po ? [["PO Number", s.po.poNumber] as [string, string]] : []),
       ["Currency", cur],
     ];
     let ry = y;
